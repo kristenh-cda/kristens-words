@@ -975,7 +975,7 @@
                             <div class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Background Emoji</label>
-                                    <div class="grid grid-cols-5 gap-1" id="bgEmojiGrid"></div>
+                                    <div class="grid grid-cols-4 gap-1.5" id="bgEmojiGrid"></div>
                                 </div>
 
                                 <div>
@@ -1306,7 +1306,7 @@
                         : emoji;
                     return `
                         <button type="button" onclick="selectBgEmoji('${emoji}')"
-                                class="aspect-square rounded-xl flex items-center justify-center text-xl bg-transparent transition-transform ${isSelected ? 'scale-110 ring-2 ring-gray-800 z-10' : 'hover:scale-105 opacity-85 hover:opacity-100'}"
+                                class="aspect-square rounded-xl flex items-center justify-center text-2xl bg-transparent transition-transform ${isSelected ? 'scale-110 ring-2 ring-gray-800 z-10' : 'hover:scale-105 opacity-85 hover:opacity-100'}"
                                 title="${emoji === '' ? 'No Emoji' : emoji}">
                             ${displayContent}
                         </button>
