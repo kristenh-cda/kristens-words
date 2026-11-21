@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-export type RecorderStatus = 'idle' | 'recording' | 'recorded';
+export type RecorderStatus = 'idle' | 'starting' | 'recording' | 'recorded';
 
 export type RecorderHook = {
   status: RecorderStatus;
@@ -99,7 +99,16 @@ export function useRecorder(): RecorderHook {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const waveformRequestRef = useRef(0);
+  const decodedAudioRef = useRef<AudioBuffer | null>(null);
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playbackGainRef = useRef<GainNode | null>(null);
+  const playbackStartedAtRef = useRef(0);
+  const playbackOffsetRef = useRef(0);
+  const playbackFrameRef = useRef<number | null>(null);
+  const playbackRequestRef = useRef(0);
   const recordingStartRef = useRef(false);
+  const cancelRecordingStartRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   // AudioContext fallback state
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -107,6 +116,127 @@ export function useRecorder(): RecorderHook {
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const pcmChunksRef = useRef<Float32Array[]>([]);
   const usingFallbackRef = useRef(false);
+
+  const stopBufferPlayback = useCallback((preservePosition: boolean) => {
+    playbackRequestRef.current += 1;
+    if (playbackFrameRef.current !== null) {
+      cancelAnimationFrame(playbackFrameRef.current);
+      playbackFrameRef.current = null;
+    }
+
+    const source = playbackSourceRef.current;
+    const gain = playbackGainRef.current;
+    const context = playbackContextRef.current;
+    if (source && preservePosition && context) {
+      const bufferDuration = decodedAudioRef.current?.duration ?? 0;
+      playbackOffsetRef.current = Math.min(
+        bufferDuration,
+        Math.max(0, context.currentTime - playbackStartedAtRef.current),
+      );
+    } else if (!preservePosition) {
+      playbackOffsetRef.current = 0;
+    }
+
+    playbackSourceRef.current = null;
+    playbackGainRef.current = null;
+    if (source) {
+      source.onended = () => {
+        source.disconnect();
+        gain?.disconnect();
+      };
+      if (context && context.state === 'running' && gain) {
+        const now = context.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.012);
+        try {
+          source.stop(now + 0.013);
+        } catch (err) {
+          console.error('Could not stop the recording playback source.', err);
+          source.disconnect();
+          gain.disconnect();
+        }
+      } else {
+        try {
+          source.stop();
+        } catch (err) {
+          console.error('Could not stop the recording playback source.', err);
+        }
+        source.disconnect();
+        gain?.disconnect();
+      }
+    }
+
+    setIsPlaying(false);
+    if (preservePosition) setCurrentTime(playbackOffsetRef.current);
+  }, []);
+
+  const playDecodedAudio = useCallback(async (offset: number) => {
+    const buffer = decodedAudioRef.current;
+    if (!buffer) return false;
+    const Ctx: typeof AudioContext | undefined =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return false;
+
+    const requestId = ++playbackRequestRef.current;
+    let context = playbackContextRef.current;
+    try {
+      if (!context || context.state === 'closed') {
+        context = new Ctx();
+        playbackContextRef.current = context;
+      }
+      if (context.state !== 'running') await context.resume();
+      if (requestId !== playbackRequestRef.current) return true;
+
+      const safeOffset = Math.min(Math.max(0, offset), buffer.duration);
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.setValueAtTime(0, context.currentTime);
+      gain.gain.linearRampToValueAtTime(1, context.currentTime + 0.01);
+      source.connect(gain);
+      gain.connect(context.destination);
+      playbackSourceRef.current = source;
+      playbackGainRef.current = gain;
+      playbackOffsetRef.current = safeOffset;
+      playbackStartedAtRef.current = context.currentTime - safeOffset;
+
+      source.onended = () => {
+        if (playbackSourceRef.current !== source) return;
+        playbackSourceRef.current = null;
+        playbackGainRef.current = null;
+        source.disconnect();
+        gain.disconnect();
+        if (playbackFrameRef.current !== null) {
+          cancelAnimationFrame(playbackFrameRef.current);
+          playbackFrameRef.current = null;
+        }
+        playbackOffsetRef.current = 0;
+        setCurrentTime(buffer.duration);
+        setIsPlaying(false);
+      };
+      source.start(0, safeOffset);
+      setCurrentTime(safeOffset);
+      setIsPlaying(true);
+
+      const updateProgress = () => {
+        if (playbackSourceRef.current !== source || !playbackContextRef.current) return;
+        setCurrentTime(
+          Math.min(buffer.duration, playbackContextRef.current.currentTime - playbackStartedAtRef.current),
+        );
+        playbackFrameRef.current = requestAnimationFrame(updateProgress);
+      };
+      playbackFrameRef.current = requestAnimationFrame(updateProgress);
+      return true;
+    } catch (err) {
+      if (requestId === playbackRequestRef.current) {
+        setError('Could not play the recording. Please try again.');
+      }
+      console.error('Could not play the decoded recording.', err);
+      return false;
+    }
+  }, []);
 
   const ensureAudioElement = useCallback(() => {
     if (audioElRef.current) return audioElRef.current;
@@ -127,6 +257,8 @@ export function useRecorder(): RecorderHook {
 
   const clearAudio = useCallback(() => {
     waveformRequestRef.current += 1;
+    stopBufferPlayback(false);
+    decodedAudioRef.current = null;
     if (audioElRef.current) {
       audioElRef.current.pause();
       audioElRef.current.removeAttribute('src');
@@ -142,7 +274,7 @@ export function useRecorder(): RecorderHook {
     setWaveform([]);
     setWaveformLoading(false);
     setWaveformError(null);
-  }, []);
+  }, [stopBufferPlayback]);
 
   const generateWaveform = useCallback(async (blob: Blob) => {
     const requestId = ++waveformRequestRef.current;
@@ -156,6 +288,15 @@ export function useRecorder(): RecorderHook {
 
       context = new Ctx();
       const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
+      if (requestId !== waveformRequestRef.current) return;
+      decodedAudioRef.current = audioBuffer;
+      const audioElement = audioElRef.current;
+      if (audioElement && !audioElement.paused) {
+        const offset = Math.min(audioElement.currentTime, audioBuffer.duration);
+        audioElement.pause();
+        playbackOffsetRef.current = offset;
+        void playDecodedAudio(offset);
+      }
       const samples = audioBuffer.getChannelData(0);
       const barCount = 80;
       const samplesPerBar = Math.max(1, Math.ceil(samples.length / barCount));
@@ -185,7 +326,7 @@ export function useRecorder(): RecorderHook {
         void context.close().catch((err) => console.error('Could not close the waveform audio context.', err));
       }
     }
-  }, []);
+  }, [playDecodedAudio]);
 
   const setAudioSource = useCallback((blob: Blob) => {
     clearAudio();
@@ -216,6 +357,12 @@ export function useRecorder(): RecorderHook {
   }, [clearAudio]);
 
   const stopRecording = useCallback(async () => {
+    if (recordingStartRef.current && !mediaRecorderRef.current && !usingFallbackRef.current) {
+      cancelRecordingStartRef.current = true;
+      setStatus('idle');
+      return;
+    }
+
     const mr = mediaRecorderRef.current;
     if (mr && mr.state !== 'inactive') {
       await new Promise<void>((resolve) => {
@@ -264,16 +411,24 @@ export function useRecorder(): RecorderHook {
       mediaRecorderRef.current?.state === 'recording'
     ) return;
     recordingStartRef.current = true;
+    cancelRecordingStartRef.current = false;
     clearAudio();
-    setStatus('idle');
+    setStatus('starting');
     setError(null);
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         setError('Recording is not supported in this browser. Please try Safari or Chrome.');
+        setStatus('idle');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+      if (cancelRecordingStartRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        setStatus('idle');
+        return;
+      }
       chunksRef.current = [];
       pcmChunksRef.current = [];
 
@@ -329,16 +484,23 @@ export function useRecorder(): RecorderHook {
 
       setStatus('recording');
     } catch (err) {
-      setError(friendlyMicError(err));
+      if (!cancelRecordingStartRef.current) setError(friendlyMicError(err));
       setStatus('idle');
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     } finally {
       recordingStartRef.current = false;
+      cancelRecordingStartRef.current = false;
     }
   }, [clearAudio, finishRecording]);
 
   const playback = useCallback(() => {
+    if (decodedAudioRef.current) {
+      stopBufferPlayback(false);
+      playbackOffsetRef.current = 0;
+      void playDecodedAudio(0);
+      return;
+    }
     const audio = audioElRef.current;
     if (!audio) return;
     audio.currentTime = 0;
@@ -346,9 +508,20 @@ export function useRecorder(): RecorderHook {
       setError('Could not play the recording. Please try again.');
       console.error('Could not play the recording.', err);
     });
-  }, []);
+  }, [playDecodedAudio, stopBufferPlayback]);
 
   const togglePlayback = useCallback(() => {
+    if (decodedAudioRef.current) {
+      if (playbackSourceRef.current) {
+        stopBufferPlayback(true);
+      } else {
+        const offset = playbackOffsetRef.current >= (decodedAudioRef.current?.duration ?? 0)
+          ? 0
+          : playbackOffsetRef.current;
+        void playDecodedAudio(offset);
+      }
+      return;
+    }
     const audio = audioElRef.current;
     if (!audio) return;
     if (!audio.paused) {
@@ -362,9 +535,16 @@ export function useRecorder(): RecorderHook {
       setError('Could not play the recording. Please try again.');
       console.error('Could not play the recording.', err);
     });
-  }, []);
+  }, [playDecodedAudio, stopBufferPlayback]);
 
   const seekAndPlay = useCallback((time: number) => {
+    if (decodedAudioRef.current) {
+      const target = Math.min(Math.max(0, time), decodedAudioRef.current.duration);
+      stopBufferPlayback(false);
+      playbackOffsetRef.current = target;
+      void playDecodedAudio(target);
+      return;
+    }
     const audio = audioElRef.current;
     if (!audio) return;
     const maxTime = Number.isFinite(audio.duration) ? audio.duration : Math.max(0, time);
@@ -375,11 +555,13 @@ export function useRecorder(): RecorderHook {
         console.error('Could not play the recording.', err);
       });
     }
-  }, []);
+  }, [playDecodedAudio, stopBufferPlayback]);
 
   useEffect(() => {
     return () => {
       waveformRequestRef.current += 1;
+      playbackRequestRef.current += 1;
+      if (playbackFrameRef.current !== null) cancelAnimationFrame(playbackFrameRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       if (audioElRef.current) {
         audioElRef.current.pause();
@@ -392,6 +574,8 @@ export function useRecorder(): RecorderHook {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const ctx = audioCtxRef.current;
       if (ctx) void ctx.close().catch(() => {});
+      const playbackContext = playbackContextRef.current;
+      if (playbackContext) void playbackContext.close().catch(() => {});
     };
   }, []);
 
