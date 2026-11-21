@@ -15,7 +15,7 @@ import {
 } from '@/data/words';
 import { ArrowLeftRight } from 'lucide-react';
 import { r2ImagePaths, resolveFirstUrl } from '@/lib/images';
-import { FilterBar } from '@/components/FilterBar';
+import { FilterBar, type MultiSelectionScope } from '@/components/FilterBar';
 import { Flashcard } from '@/components/Flashcard';
 import { MultiFlashcard } from '@/components/MultiFlashcard';
 import type { CardSlot } from '@/components/FlashcardView';
@@ -124,6 +124,7 @@ export default function App() {
     mode: 'floating',
   });
   const [multiMode, setMultiMode] = useState(false);
+  const [multiSelectionScope, setMultiSelectionScope] = useState<MultiSelectionScope>('category');
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [limitedMultiGroups, setLimitedMultiGroups] = useState<Set<string>>(new Set());
   const [multiDeck, setMultiDeck] = useState<MixedDeck | null>(null);
@@ -404,6 +405,7 @@ export default function App() {
   const swapMode = () => {
     setMode((m) => (m === 'language' ? 'speech' : 'language'));
     setMultiMode(false);
+    setMultiSelectionScope('category');
     setMultiSelected(new Set());
     setLimitedMultiGroups(new Set());
     setMultiDeck(null);
@@ -637,16 +639,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [multiSelected, multiMode, mode, limitedMultiGroups]);
 
-  const toggleMultiMode = () => {
-    setMultiMode((m) => {
-      if (m) {
-        // Leaving multi-select clears its selections and any deck it built.
-        setMultiSelected(new Set());
-        setLimitedMultiGroups(new Set());
-        setMultiDeck(null);
-      }
-      return !m;
-    });
+  const toggleMultiMode = (scope: MultiSelectionScope) => {
+    const sameModeIsActive = multiMode && multiSelectionScope === scope;
+    setMultiMode(!sameModeIsActive);
+    setMultiSelectionScope(scope);
+    setMultiSelected(new Set());
+    setLimitedMultiGroups(new Set());
+    setMultiDeck(null);
   };
 
   const shuffleDeck = () => {
@@ -771,6 +770,7 @@ export default function App() {
           subId={subId}
           groupId={groupId}
           multiMode={multiMode}
+          multiSelectionScope={multiSelectionScope}
           multiSelected={multiSelected}
           onToggleMultiMode={toggleMultiMode}
           onMultiToggleCategory={handleMultiToggleCategory}

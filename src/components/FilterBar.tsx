@@ -3,6 +3,8 @@ import { ChevronDown, ChevronUp, Layers, Image as ImageIcon, Puzzle, Boxes } fro
 import { categoryListFor, orderedSpeechCategories, earlySoundsCategories, type Mode, type SoundCategory, type Subcategory } from '@/data/words';
 import { isSelectableCategory } from '@/components/pickerGroups';
 
+export type MultiSelectionScope = 'category' | 'subcategory' | 'group';
+
 type Props = {
   mode: Mode;
   categoryId: string | null;
@@ -16,8 +18,9 @@ type Props = {
   onShowActivities: () => void;
   onClearSelection: () => void;
   multiMode: boolean;
+  multiSelectionScope: MultiSelectionScope;
   multiSelected: Set<string>;
-  onToggleMultiMode: () => void;
+  onToggleMultiMode: (scope: MultiSelectionScope) => void;
   onMultiToggleCategory: (categoryId: string) => void;
   onMultiToggleSub: (subId: string) => void;
   onMultiToggleGroup: (subId: string, groupId: string) => void;
@@ -56,6 +59,7 @@ export function FilterBar({
   onShowActivities,
   onClearSelection,
   multiMode,
+  multiSelectionScope,
   multiSelected,
   onToggleMultiMode,
   onMultiToggleCategory,
@@ -88,30 +92,46 @@ export function FilterBar({
     return keys.length > 0 && keys.every((k) => multiSelected.has(k));
   };
 
-  const multiButton = (inGroupsRow: boolean) => (
-    <button
-      onClick={onToggleMultiMode}
-      aria-pressed={multiMode}
-      aria-label="Select multiple sound groups"
-      title="Select multiple sound groups"
-      className={`shrink-0 w-9 h-8 rounded-lg flex items-center justify-center border transition-all active:scale-95 ${
-        multiMode
-          ? 'bg-gray-800 text-white border-gray-900 shadow-sm ring-2 ring-gray-300'
-          : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700'
-      }`}
-    >
-      <Boxes className="w-4 h-4" />
-    </button>
-  );
+  const handleCategoryClick = (id: string) => {
+    if (multiMode && multiSelectionScope === 'category') onMultiToggleCategory(id);
+    else if (!multiMode || id !== categoryId) onCategoryChange(id);
+  };
+
+  const multiButton = (inGroupsRow: boolean) => {
+    const scope = inGroupsRow ? 'group' : 'subcategory';
+    const label = inGroupsRow ? 'Select multiple sound groups' : 'Select multiple subcategories';
+    const active = multiMode && multiSelectionScope === scope;
+    return (
+      <button
+        onClick={() => onToggleMultiMode(scope)}
+        aria-pressed={active}
+        aria-label={label}
+        title={label}
+        className={`shrink-0 w-9 h-8 flex items-center justify-center transition-all active:scale-95 ${
+          inGroupsRow
+            ? `rounded-lg border ${
+                active
+                  ? 'bg-gray-800 text-white border-gray-900 shadow-sm ring-2 ring-gray-300'
+                  : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700'
+              }`
+            : `rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-400 ${
+                active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
+              }`
+        }`}
+      >
+        <Boxes className="w-4 h-4" />
+      </button>
+    );
+  };
 
   const categoryMultiButton = (
     <button
-      onClick={onToggleMultiMode}
-      aria-pressed={multiMode}
+      onClick={() => onToggleMultiMode('category')}
+      aria-pressed={multiMode && multiSelectionScope === 'category'}
       aria-label="Select multiple main categories"
       title="Select multiple main categories"
       className={`flex h-12 w-10 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 active:scale-95 ${
-        multiMode ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
+        multiMode && multiSelectionScope === 'category' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
       }`}
     >
       <Boxes className="h-5 w-5" />
@@ -208,15 +228,12 @@ export function FilterBar({
     row.length > 0 && (
       <div key={rowIndex} className="flex flex-wrap items-center justify-center gap-2">
         {row.map((c) => {
-          const active = multiMode ? isCategorySelected(c) : c.id === categoryId;
+          const active = multiMode && multiSelectionScope === 'category' ? isCategorySelected(c) : c.id === categoryId;
           const empty = c.disabled || c.subcategories.length === 0 || !isSelectableCategory(c.id);
           return (
             <button
               key={c.id}
-              onClick={() => {
-                if (multiMode) onMultiToggleCategory(c.id);
-                else onCategoryChange(c.id);
-              }}
+              onClick={() => handleCategoryClick(c.id)}
               disabled={empty}
               aria-pressed={active}
               title={empty ? 'Coming soon' : undefined}
@@ -256,15 +273,12 @@ export function FilterBar({
   {mode !== 'language' && earlySoundsOpen && (
     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
       {earlySounds.map((c) => {
-    const active = multiMode ? isCategorySelected(c) : c.id === categoryId;
+    const active = multiMode && multiSelectionScope === 'category' ? isCategorySelected(c) : c.id === categoryId;
         const empty = c.disabled || c.subcategories.length === 0 || !isSelectableCategory(c.id);
         return (
           <button
             key={c.id}
-        onClick={() => {
-          if (multiMode) onMultiToggleCategory(c.id);
-          else onCategoryChange(c.id);
-        }}
+        onClick={() => handleCategoryClick(c.id)}
             disabled={empty}
             aria-pressed={active}
             title={empty ? 'Coming soon' : undefined}
