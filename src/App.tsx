@@ -42,6 +42,7 @@ import {
   saveFlashcardSettings,
   type FlashcardSettings,
 } from '@/components/FlashcardSettings';
+import { CounterLauncher, type CounterMode } from '@/components/counter/CounterLauncher';
 
 function FloralMark({ className }: { className?: string }) {
   return (
@@ -118,6 +119,10 @@ export default function App() {
   const [customTargets, setCustomTargets] = useState<CustomTarget[] | null>(null);
   const [settings, setSettings] = useState<FlashcardSettings>(loadFlashcardSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [counterLayout, setCounterLayout] = useState<{ active: boolean; mode: CounterMode }>({
+    active: false,
+    mode: 'floating',
+  });
   const [multiMode, setMultiMode] = useState(false);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [limitedMultiGroups, setLimitedMultiGroups] = useState<Set<string>>(new Set());
@@ -130,6 +135,9 @@ export default function App() {
       return next;
     });
   };
+  const updateCounterLayout = useCallback((active: boolean, mode: CounterMode) => {
+    setCounterLayout({ active, mode });
+  }, []);
 
   const cat = categoryId ? findCategory(categoryId) : undefined;
   const sub = cat && subId ? findSubcategory(cat, subId) : undefined;
@@ -702,7 +710,17 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen relative flex flex-col pt-[env(safe-area-inset-top)]" tabIndex={0} onKeyDown={keyboardHandler}>
+    <div
+      className={`counter-host min-h-screen relative flex flex-col pt-[env(safe-area-inset-top)] ${
+        counterLayout.active && counterLayout.mode === 'split-left'
+          ? 'counter-split-left'
+          : counterLayout.active && counterLayout.mode === 'split-right'
+            ? 'counter-split-right'
+            : ''
+      }`}
+      tabIndex={0}
+      onKeyDown={keyboardHandler}
+    >
       <div aria-hidden="true" className="fixed inset-0 -z-10 pointer-events-none">
         <img
           src="https://pub-c53fff4920214dd59d4a14590b17acae.r2.dev/seasonal/background.jpg"
@@ -712,7 +730,7 @@ export default function App() {
         <div className="absolute inset-0 bg-gradient-to-b from-gray-100/0 via-gray-100/0 to-gray-100/0" />
       </div>
       <header className="w-full bg-gradient-to-b from-white/100 via-white/80 to-white/60 backdrop-blur border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
           <div className="flex items-center gap-2">
             <img
               src="/ready-play-speech.png"
@@ -724,12 +742,13 @@ export default function App() {
               <img
                 src="/branding/kristens-words-bakula.png"
                 alt="Kristen's Words"
-                className="block h-auto w-[240px] max-w-full"
+                className="block h-auto w-[180px] max-w-full sm:w-[240px]"
                 draggable={false}
               />
             </h1>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <CounterLauncher onLayoutChange={updateCounterLayout} />
             <button
               onClick={swapMode}
               aria-label={`Switch to ${mode === 'language' ? 'speech' : 'language'} mode`}
@@ -737,7 +756,7 @@ export default function App() {
               className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900 active:scale-95"
             >
               <ArrowLeftRight className="w-4 h-4" />
-              <span>{mode === 'language' ? 'Speech' : 'Language'}</span>
+              <span className="hidden sm:inline">{mode === 'language' ? 'Speech' : 'Language'}</span>
             </button>
             <StatsBar correct={correct} tries={tries} onReset={resetSession} />
           </div>
