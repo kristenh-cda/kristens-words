@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Counter</title>
+
+    <!-- iOS & Browser Home Screen App Support -->
+    <meta name="application-name" content="Counter">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Counter">
+    <!-- App Icon: Black background, blue counter set to 8 (5/6ths full) -->
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" href="icon.png">
+
+    <link rel="stylesheet" href="/counter/tailwind.css">
+    <!-- Canvas Confetti -->
+    <script async src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Rounded Font for Numbers & Titles -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #ffffff;
+            /* Disable text selection and highlighting for a native app feel */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body, #app {
+            width: 100%;
+            height: 100%;
+        }
+
+        body.counter-floating {
+            min-height: 0 !important;
+            background: transparent !important;
+            overflow: hidden !important;
+        }
+
+        body.counter-floating #app {
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+
+        body.counter-floating #counterStage {
+            position: relative !important;
+            inset: auto !important;
+            min-height: 100%;
+            background: transparent !important;
+        }
+
+        body.counter-floating #counterHeader,
+        body.counter-floating #counterRightControls,
+        body.counter-floating #decrementButton {
+            display: none !important;
+        }
+
+        body.counter-popup #decrementButton {
+            display: none !important;
+        }
+
+        body.counter-dashboard #app,
+        body.counter-popup #app {
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        body.counter-floating .liquid-container {
+            width: min(84vw, 84vh);
+            height: min(84vw, 84vh);
+            max-width: none;
+            max-height: none;
+            margin: 0;
+            border-width: clamp(18px, 11vmin, 42px);
+            box-shadow: inset 0 4px 14px rgba(15, 23, 42, 0.1);
+        }
+
+        body.counter-floating .liquid-text {
+            font-size: clamp(5rem, 28vmin, 9rem);
+        }
+
+        body.counter-floating .liquid-text.shrink {
+            font-size: clamp(3.5rem, 20vmin, 6.5rem);
+        }
+
+        @media (max-width: 420px) {
+            body.counter-compact #counterHeader {
+                top: 8px;
+                left: 8px;
+                right: 8px;
+                gap: 4px;
+            }
+
+            body.counter-compact #counterHeader > button {
+                padding: 8px;
+            }
+
+            body.counter-compact #headerCounterName {
+                overflow: hidden;
+                font-size: 1.25rem;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            body.counter-compact #counterRightControls {
+                top: 56px;
+                right: 8px;
+                gap: 6px;
+            }
+
+            body.counter-compact #headerGoalBadge {
+                padding: 8px 12px;
+                font-size: 0.875rem;
+            }
+
+            body.counter-compact #counterRightControls > button {
+                padding: 8px;
+            }
+
+            body.counter-compact .liquid-container {
+                width: min(80vw, 55vh);
+                height: min(80vw, 55vh);
+                border-width: clamp(16px, 8vmin, 34px);
+            }
+
+            body.counter-compact .liquid-text {
+                font-size: clamp(4rem, 22vmin, 7rem);
+            }
+        }
+
+        .font-nunito {
+            font-family: 'Nunito', sans-serif;
+        }
+
+        /* The Custom Liquid Ring */
+        .liquid-container {
+            width: 85vw;
+            max-width: 360px;
+            height: 85vw;
+            max-height: 360px;
+            border-radius: 50%;
+            border: 48px solid var(--ring-color);
+            background-color: white; /* Ensures text is always readable */
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4), inset 0 10px 25px rgba(0,0,0,0.15);
+            transition: border-color 0.2s ease;
+        }
+
+        /* Gentle White Glow Overlay */
+        .liquid-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            box-shadow: inset 0 0 60px rgba(255, 255, 255, 0.9);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Dashboard Circular Shortcuts */
+        .dash-circle {
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), inset 0 0 15px rgba(255,255,255,0.8);
+        }
+
+        @media (min-width: 640px) {
+            .liquid-container {
+                width: 500px;
+                max-width: 75vh;
+                height: 500px;
+                max-height: 75vh;
+            }
+        }
+
+        .liquid-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--ring-color);
+            opacity: 0.85; /* Slight transparency so it looks like liquid */
+            transition: height 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+            z-index: 1;
+            /* Soft liquid shading and glossy top edge (meniscus) */
+            box-shadow: inset 0 15px 25px rgba(255, 255, 255, 0.4);
+            border-top: 3px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .liquid-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Nunito', sans-serif;
+            font-size: 6.5rem;
+            font-weight: 700;
+            color: black;
+            z-index: 10; /* Keeps text above the liquid */
+            transition: font-size 0.2s ease-in-out;
+        }
+
+        .liquid-text.shrink {
+            font-size: 4.5rem;
+        }
+
+        @media (min-width: 640px) {
+            .liquid-text {
+                font-size: 10rem;
+            }
+            .liquid-text.shrink {
+                font-size: 7.5rem;
+            }
+        }
+
+        .pulse-anim {
+            animation: pulse-ring 0.15s ease-out;
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.97); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes bg-move {
+            0% { background-position: 0px 0px; }
+            100% { background-position: 240px 240px; } /* Exactly two 120px cycles to perfectly loop back to the start */
+        }
+
+        @keyframes bg-flash {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.15) contrast(1.1); }
+        }
+
+        .celebration-active {
+            /* Runs for exactly 3 seconds and stops smoothly on the exact frame it started on */
+            animation: bg-move 3s linear forwards, bg-flash 0.6s ease-in-out 5 forwards !important;
+        }
+    </style>
+</head>
+<body class="transition-colors duration-300 min-h-screen w-full">
+
+    <!-- Main App Container -->
+    <div id="app" class="w-full h-full min-h-screen"></div>
+
+    <script type="module">
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // Firebase Config
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyAJvGT0O1DWBm_XjLtOuZC3TWiv6WKKVG4",
+            authDomain: "speechcounter-cda.firebaseapp.com",
+            projectId: "speechcounter-cda",
+            storageBucket: "speechcounter-cda.firebasestorage.app",
+            messagingSenderId: "987346473519",
+            appId: "1:987346473519:web:04ea86e93d659ca4a86cda",
+            measurementId: "G-4P6Z6VXVJF"
+        };
+
+        const firebaseConfig = myFirebaseConfig || (typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null);
+        let db = null;
+        let firestoreApi = null;
+        let firebaseInitPromise = null;
+
+        // Saturated Pastel Ring Colors
+        const ringColors = [
+            '#E64836', '#FF4A3D', '#FDA649', '#FCCE36', '#FDE55E', // Reds/Oranges/Yellows
+            '#CBF778', '#4FDD45', '#4FA740', '#40DD9F', '#37E6C9', // Greens/Teals
+            '#4FE4F8', '#60CAFB', '#61A8FA', '#889BFB', '#B29CFC', // Blues/Purples
+            '#CC9BFD', '#F78DC7', '#FB8896', '#B3C2D1', '#A9A9A9'  // Pinks/Grey
+        ];
+
+        // Background color squares (white + ring colors excluding the second-last light grey #B3C2D1)
+        const bgColorOptions = [
+            '#ffffff',
+            ...ringColors.filter(color => color !== '#B3C2D1')
+        ];
+
+        // Background Emojis (first option '' clears the emoji)
+        const bgEmojis = [
+            '', '🌼', '☀️', '🌳', '🦆',
+            '🐟', '🦋', '🦕', '🏎️', '⚽',
+            '💩', '🍭', '🍿', '🍕', '🎃',
+            '👻', '🎄', '🎅', '❄️', '⛄'
+        ];
+
+        // Legacy theme mapping for backwards compatibility with older saved counters
+        const legacyThemes = {
+            white: { color: '#ffffff', icon: '' },
+            pink_daisy: { color: '#F78DC7', icon: '🌼' },
+            yellow_sun: { color: '#FDE55E', icon: '☀️' },
+            green_tree: { color: '#4FDD45', icon: '🌳' },
+            turquoise_duck: { color: '#37E6C9', icon: '🦆' },
+            blue_fish: { color: '#60CAFB', icon: '🐟' },
+            purple_butterfly: { color: '#B29CFC', icon: '🦋' },
+            green_dino: { color: '#CBF778', icon: '🦕' },
+            red_racecar: { color: '#FF4A3D', icon: '🏎️' },
+            brown_poop: { color: '#FDA649', icon: '💩' },
+            rainbow_lollipop: { color: '#CC9BFD', icon: '🍭' },
+            blue_snowflake: { color: '#4FE4F8', icon: '❄️' },
+            blue_snowman: { color: '#61A8FA', icon: '⛄' },
+            orange_jack: { color: '#FDA649', icon: '🎃' },
+            grey_ghost: { color: '#B3C2D1', icon: '👻' },
+            green_tree2: { color: '#4FA740', icon: '🎄' },
+            red_santa: { color: '#E64836', icon: '🎅' }
+        };
+
+        // Audio URLs & Preloaded In-Memory Buffers
+        const POP_SOUND_URL = "https://cdn.pixabay.com/download/audio/2026/03/15/audio_82c2b79a54.mp3?filename=pop-423717.mp3";
+        const FANFARE_SOUND_URL = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c89c836965.mp3?filename=fanfare-46385.mp3";
+
+        const popAudio = new Audio(POP_SOUND_URL);
+        const fanfareAudio = new Audio(FANFARE_SOUND_URL);
+        popAudio.preload = 'auto';
+        fanfareAudio.preload = 'auto';
+        popAudio.load();
+        fanfareAudio.load();
+
+        // App State
+        let counters = [];
+        let currentView = 'dashboard';
+        let audioCtx = null;
+        let popRawArrayBuffer = null;
+        let fanfareRawArrayBuffer = null;
+        let popAudioBuffer = null;
+        let fanfareAudioBuffer = null;
+        let isDecodingPop = false;
+        let isDecodingFanfare = false;
+        let touchStartY = 0;
+        let isSwiping = false;
+        let isCelebrating = false;
+        let isDraining = false;
+        let openSettingsImmediately = false;
+        let sortOption = 'recent';
+        let sortAscending = false;
+        let syncCode = localStorage.getItem('countingApp_syncCode') || '';
+        let unsubscribeCounters = null;
+        const pendingWritesKey = 'countingApp_pendingSync';
+        const pendingDeletesKey = 'countingApp_pendingDeletes';
+        let pendingCounterWrites = readPendingState(pendingWritesKey);
+        let pendingCounterDeletes = readPendingState(pendingDeletesKey);
+        let syncInProgress = false;
+        let syncRequested = false;
+
+        try {
+            const stored = JSON.parse(localStorage.getItem('countingApp_data'));
+            counters = Array.isArray(stored) ? stored : [];
+        } catch (e) {
+            counters = [];
+        }
+
+        function readPendingState(key) {
+            try {
+                const value = JSON.parse(localStorage.getItem(key) || '{}');
+                return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+            } catch (error) {
+                console.warn(`Could not read pending counter changes from ${key}.`, error);
+                return {};
+            }
+        }
+
+        function persistPendingChanges() {
+            localStorage.setItem(pendingWritesKey, JSON.stringify(pendingCounterWrites));
+            localStorage.setItem(pendingDeletesKey, JSON.stringify(pendingCounterDeletes));
+        }
+
+        function syncPendingChanges() {
+            if (!db || !firestoreApi || navigator.onLine === false) return;
+            if (syncInProgress) {
+                syncRequested = true;
+                return;
+            }
+
+            syncInProgress = true;
+            const activeId = syncCode.trim() || 'default_local_user';
+            const writes = Object.entries(pendingCounterWrites).map(([id, counter]) => {
+                const savedValue = JSON.stringify(counter);
+                const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
+                return firestoreApi.setDoc(counterRef, counter).then(() => {
+                    const currentActiveId = syncCode.trim() || 'default_local_user';
+                    if (currentActiveId === activeId && JSON.stringify(pendingCounterWrites[id]) === savedValue) {
+                        delete pendingCounterWrites[id];
+                        persistPendingChanges();
+                    }
+                }).catch((error) => {
+                    console.error('Counter sync failed; the change remains queued locally.', error);
+                });
+            });
+            const deletes = Object.keys(pendingCounterDeletes).map((id) => {
+                const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
+                return firestoreApi.deleteDoc(counterRef).catch((error) => {
+                    console.error('Counter deletion sync failed; the change remains queued locally.', error);
+                });
+            });
+
+            Promise.all([...writes, ...deletes]).finally(() => {
+                syncInProgress = false;
+                if (syncRequested) {
+                    syncRequested = false;
+                    syncPendingChanges();
+                }
+            });
+        }
+
+        async function initializeFirebase() {
+            if (!firebaseConfig || db) return;
+            if (firebaseInitPromise) return firebaseInitPromise;
+
+            firebaseInitPromise = (async () => {
+                try {
+                    const [firebaseModule, firestoreModule] = await Promise.all([
+                        import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js'),
+                        import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js')
+                    ]);
+                    const firebaseApp = firebaseModule.initializeApp(firebaseConfig);
+                    firestoreApi = firestoreModule;
+                    db = firestoreApi.getFirestore(firebaseApp);
+                    try {
+                        await firestoreApi.enableIndexedDbPersistence(db);
+                    } catch (error) {
+                        console.warn('Persistent Firestore cache is unavailable; local counter changes remain queued.', error);
+                    }
+                    setupRealtimeSubscription();
+                    syncPendingChanges();
+                } catch (error) {
+                    console.warn('Firebase is unavailable; counters will continue using local storage and retry when online.', error);
+                } finally {
+                    firebaseInitPromise = null;
+                }
+            })();
+
+            return firebaseInitPromise;
+        }
+
+        function setupRealtimeSubscription() {
+            if (!db || !firestoreApi) return;
+            if (unsubscribeCounters) unsubscribeCounters();
+
+            const activeId = syncCode.trim() || 'default_local_user';
+            const countersRef = firestoreApi.collection(db, 'artifacts', appId, 'users', activeId, 'counters');
+
+            unsubscribeCounters = firestoreApi.onSnapshot(firestoreApi.query(countersRef), (snapshot) => {
+                const remoteCounters = [];
+                snapshot.forEach((docSnap) => {
+                    remoteCounters.push({ id: docSnap.id, ...docSnap.data() });
+                });
+
+                const remoteIds = new Set(remoteCounters.map((counter) => counter.id));
+                if (!snapshot.metadata.fromCache) {
+                    Object.keys(pendingCounterDeletes).forEach((id) => {
+                        if (!remoteIds.has(id)) delete pendingCounterDeletes[id];
+                    });
+                    if (remoteCounters.length === 0 && counters.length > 0
+                        && Object.keys(pendingCounterWrites).length === 0
+                        && Object.keys(pendingCounterDeletes).length === 0) {
+                        counters.forEach((counter) => {
+                            pendingCounterWrites[counter.id] = counter;
+                        });
+                    }
+                }
+
+                const mergedCounters = new Map();
+                remoteCounters.forEach((counter) => {
+                    if (!pendingCounterWrites[counter.id] && !pendingCounterDeletes[counter.id]) {
+                        mergedCounters.set(counter.id, counter);
+                    }
+                });
+                if (snapshot.metadata.fromCache && remoteCounters.length === 0) {
+                    counters.forEach((counter) => {
+                        if (!pendingCounterWrites[counter.id] && !pendingCounterDeletes[counter.id]) {
+                            mergedCounters.set(counter.id, counter);
+                        }
+                    });
+                }
+                Object.values(pendingCounterWrites).forEach((counter) => {
+                    mergedCounters.set(counter.id, counter);
+                });
+                counters = [...mergedCounters.values()];
+                persistPendingChanges();
+                localStorage.setItem('countingApp_data', JSON.stringify(counters));
+                syncPendingChanges();
+                const modal = document.getElementById('settingsModal');
+                const isModalOpen = modal && !modal.classList.contains('hidden');
+                if (!isModalOpen) {
+                    renderApp();
+                }
+            }, (error) => {
+                console.error("Firebase sync error:", error);
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('countingApp_data', JSON.stringify(counters));
+            counters.forEach((counter) => {
+                pendingCounterWrites[counter.id] = counter;
+                delete pendingCounterDeletes[counter.id];
+            });
+            persistPendingChanges();
+            syncPendingChanges();
+        }
+
+        function queueCounterDeletion(id) {
+            delete pendingCounterWrites[id];
+            pendingCounterDeletes[id] = true;
+            persistPendingChanges();
+        }
+
+        function createCounterObject() {
+            return {
+                id: Math.random().toString(36).substr(2, 9),
+                name: 'My Counter',
+                count: 0,
+                goal: 100,
+                step: 1,
+                color: '#E64836',
+                bgColor: '#ffffff',
+                bgEmoji: '',
+                lastAccessed: Date.now()
+            };
+        }
+
+        window.createNewCounter = function() {
+            const newC = createCounterObject();
+            counters.push(newC);
+            saveData();
+
+            currentView = newC.id;
+            openSettingsImmediately = true;
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-selected', id: newC.id, openSettings: true }, location.origin);
+        };
+
+        // Ensure Web Audio Context is initialized and awake (especially after mobile sleep/idle)
+        function ensureAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    audioCtx = new AudioContextClass();
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().catch(() => {});
+            }
+            return audioCtx;
+        }
+
+        // Decode fetched audio files into RAM AudioBuffers for zero-lag, overlapping playback
+        function decodePreloadedBuffers() {
+            const ctx = ensureAudioContext();
+            if (!ctx) return;
+
+            if (popRawArrayBuffer && !popAudioBuffer && !isDecodingPop) {
+                isDecodingPop = true;
+                ctx.decodeAudioData(popRawArrayBuffer.slice(0))
+                    .then(decoded => {
+                        popAudioBuffer = decoded;
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                        isDecodingPop = false;
+                    });
+            }
+
+            if (fanfareRawArrayBuffer && !fanfareAudioBuffer && !isDecodingFanfare) {
+                isDecodingFanfare = true;
+                ctx.decodeAudioData(fanfareRawArrayBuffer.slice(0))
+                    .then(decoded => {
+                        fanfareAudioBuffer = decoded;
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                        isDecodingFanfare = false;
+                    });
+            }
+        }
+
+        // Fetch raw audio bytes into memory immediately on startup
+        function preloadAudioAssets() {
+            fetch(POP_SOUND_URL)
+                .then(res => res.ok ? res.arrayBuffer() : null)
+                .then(buf => {
+                    if (buf) {
+                        popRawArrayBuffer = buf;
+                        decodePreloadedBuffers();
+                    }
+                })
+                .catch(() => {});
+
+            fetch(FANFARE_SOUND_URL)
+                .then(res => res.ok ? res.arrayBuffer() : null)
+                .then(buf => {
+                    if (buf) {
+                        fanfareRawArrayBuffer = buf;
+                        decodePreloadedBuffers();
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Unlock & wake audio on first user interaction or when returning to the tab/app
+        function unlockAudioEngine() {
+            ensureAudioContext();
+            decodePreloadedBuffers();
+        }
+
+        window.addEventListener('touchstart', unlockAudioEngine, { passive: true });
+        window.addEventListener('pointerdown', unlockAudioEngine, { passive: true });
+        window.addEventListener('keydown', unlockAudioEngine, { passive: true });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                unlockAudioEngine();
+            }
+        });
+
+        preloadAudioAssets();
+
+        function playDecodedBuffer(buffer) {
+            const ctx = ensureAudioContext();
+            if (!ctx || !buffer) return false;
+            try {
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.connect(ctx.destination);
+                source.start(0);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function playSynthPop(isDecrease = false) {
+            const ctx = ensureAudioContext();
+            if (!ctx) return;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(isDecrease ? 120 : 250, ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(isDecrease ? 30 : 60, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.6, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.1);
+        }
+
+        function playSynthFanfare() {
+            const ctx = ensureAudioContext();
+            if (!ctx) return;
+            const notes = [261.63, 329.63, 392.00, 523.25];
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.value = freq;
+                const startTime = ctx.currentTime + (i * 0.1);
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.3, startTime + 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + 2.8);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + 3.0);
+            });
+        }
+
+        // Audio Triggers: Instant RAM Buffer -> Cloned HTMLAudio -> Web Audio Synth Fallback
+        function playPopSound(isDecrease = false) {
+            unlockAudioEngine();
+
+            if (popAudioBuffer && playDecodedBuffer(popAudioBuffer)) {
+                return;
+            }
+
+            if (popAudio.readyState >= 2) {
+                const clone = popAudio.cloneNode(true);
+                clone.play().catch(() => playSynthPop(isDecrease));
+                return;
+            }
+
+            playSynthPop(isDecrease);
+        }
+
+        function playCelebrateSound() {
+            unlockAudioEngine();
+
+            if (fanfareAudioBuffer && playDecodedBuffer(fanfareAudioBuffer)) {
+                return;
+            }
+
+            if (fanfareAudio.readyState >= 2) {
+                const clone = fanfareAudio.cloneNode(true);
+                clone.play().catch(() => playSynthFanfare());
+                return;
+            }
+
+            playSynthFanfare();
+        }
+
+        // Convert hex color to a 20% lighter RGBA string at 0.48 alpha (40% more transparent than 0.8)
+        function getBgRgba(hex) {
+            if (!hex || hex.toLowerCase() === '#ffffff') return '#ffffff';
+            const clean = hex.replace('#', '');
+            if (clean.length !== 6) return hex;
+            const r = parseInt(clean.slice(0, 2), 16);
+            const g = parseInt(clean.slice(2, 4), 16);
+            const b = parseInt(clean.slice(4, 6), 16);
+            // Mix 20% toward white (255) for a lighter tint
+            const lightR = Math.round(r + (255 - r) * 0.2);
+            const lightG = Math.round(g + (255 - g) * 0.2);
+            const lightB = Math.round(b + (255 - b) * 0.2);
+            return `rgba(${lightR}, ${lightG}, ${lightB}, 0.48)`;
+        }
+
+        // Resolve counter background color and emoji (with migration for older counters)
+        function getCounterAppearance(c) {
+            if (c.bgColor !== undefined || c.bgEmoji !== undefined) {
+                return {
+                    bgColor: c.bgColor || '#ffffff',
+                    bgEmoji: c.bgEmoji || ''
+                };
+            }
+            const legacy = legacyThemes[c.themeId || 'white'] || { color: '#ffffff', icon: '' };
+            const showImg = c.showImage !== false;
+            return {
+                bgColor: legacy.color,
+                bgEmoji: showImg ? legacy.icon : ''
+            };
+        }
+
+        function applyBackgroundAppearance(element, bgColor, bgEmoji, solidColor = false) {
+            element.style.backgroundColor = solidColor ? bgColor : getBgRgba(bgColor);
+            if (bgEmoji) {
+                const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" opacity="0.18"><text x="50%" y="50%" font-size="60" text-anchor="middle" dominant-baseline="central">${bgEmoji}</text></svg>`;
+                element.style.backgroundImage = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
+                element.style.backgroundSize = '120px 120px';
+            } else {
+                element.style.backgroundImage = 'none';
+            }
+        }
+
+        function updateFloatingFillAppearance(counter) {
+            const fill = document.getElementById('liquidFillEl');
+            if (!fill) return;
+
+            if (counterDisplayMode === 'floating') {
+                const { bgColor, bgEmoji } = getCounterAppearance(counter);
+                applyBackgroundAppearance(fill, bgColor, bgEmoji, true);
+            } else {
+                fill.style.backgroundColor = '';
+                fill.style.backgroundImage = '';
+                fill.style.backgroundSize = '';
+            }
+        }
+
+        function renderApp() {
+            if (currentView === 'dashboard') {
+                renderDashboard();
+            } else {
+                renderFullScreenCounter();
+            }
+        }
+
+        function renderDashboard() {
+            document.body.classList.remove('counter-floating');
+            document.body.classList.remove('counter-popup', 'counter-compact');
+            document.body.classList.add('counter-dashboard');
+            document.body.style.backgroundColor = '#ffffff';
+            document.body.style.backgroundImage = 'none';
+
+            let sortedCounters = [...counters].sort((a, b) => {
+                let valA, valB;
+                if (sortOption === 'name') {
+                    valA = (a.name || '').toLowerCase();
+                    valB = (b.name || '').toLowerCase();
+                    if (valA < valB) return sortAscending ? -1 : 1;
+                    if (valA > valB) return sortAscending ? 1 : -1;
+                    return 0;
+                } else if (sortOption === 'count') {
+                    valA = a.count || 0;
+                    valB = b.count || 0;
+                } else {
+                    valA = a.lastAccessed || 0;
+                    valB = b.lastAccessed || 0;
+                }
+                return sortAscending ? valA - valB : valB - valA;
+            });
+
+            let html = `
+                <div class="p-6 sm:p-10 max-w-4xl mx-auto pb-24">
+                    <div class="flex justify-end items-center mb-8 gap-4">
+                        <div class="flex items-center gap-2">
+                            <select id="sortOption" onchange="changeSort(event)" class="bg-gray-50 border border-gray-200 text-gray-700 py-2.5 px-4 rounded-xl font-bold shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-100 cursor-pointer">
+                                <option value="recent" ${sortOption === 'recent' ? 'selected' : ''}>Recently Used</option>
+                                <option value="count" ${sortOption === 'count' ? 'selected' : ''}>Current Count</option>
+                                <option value="name" ${sortOption === 'name' ? 'selected' : ''}>Alphabetical</option>
+                            </select>
+                            <button onclick="toggleSortDirection()" class="bg-gray-50 border border-gray-200 text-gray-700 p-2.5 rounded-xl shadow-sm hover:bg-gray-100 active:scale-95 transition-transform" title="Toggle Ascending/Descending">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="${sortAscending ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-y-10 gap-x-4 sm:gap-x-6">
+            `;
+
+            sortedCounters.forEach(c => {
+                const { bgEmoji } = getCounterAppearance(c);
+
+                html += `
+                    <div class="flex flex-col items-center gap-2">
+                        <div onclick="openCounter('${c.id}')"
+                             class="w-full aspect-square rounded-full dash-circle flex items-center justify-center cursor-pointer transform hover:scale-105 active:scale-95 transition-all relative overflow-hidden"
+                             style="background-color: ${c.color}40; border: 12px solid ${c.color}">
+                            ${bgEmoji ? `<div class="absolute inset-0 opacity-20 flex items-center justify-center text-6xl pointer-events-none">${bgEmoji}</div>` : ''}
+                            <span class="text-3xl sm:text-4xl font-black relative z-10" style="color: ${c.color}">${c.count}</span>
+                        </div>
+                        <div class="flex items-center justify-center gap-1 w-full min-w-0 px-1">
+                            <span class="text-sm font-bold text-gray-800 text-center truncate">${c.name || 'Counter'}</span>
+                            <button type="button" onclick="event.stopPropagation(); openCounterSettings('${c.id}')" aria-label="Edit counter settings" title="Edit settings" class="shrink-0 p-1.5 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900 active:scale-95">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    <div class="flex flex-col items-center gap-3">
+                        <div onclick="createNewCounter()"
+                             class="w-full aspect-square rounded-full flex items-center justify-center cursor-pointer hover:bg-gray-100 active:scale-95 transition-all bg-white shadow-lg text-gray-400 hover:text-gray-600 border-2 border-gray-100">
+                            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"></path></svg>
+                        </div>
+                        <span class="text-sm font-bold text-gray-400 text-center truncate w-full px-2">Add New</span>
+                    </div>
+                </div>
+            </div>
+            `;
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        window.changeSort = function(e) {
+            sortOption = e.target.value;
+            if (sortOption === 'recent') sortAscending = false;
+            else if (sortOption === 'count') sortAscending = false;
+            else sortAscending = true;
+            renderApp();
+        };
+
+        window.toggleSortDirection = function() {
+            sortAscending = !sortAscending;
+            renderApp();
+        };
+
+        window.openCounter = function(id) {
+            currentView = id;
+            openSettingsImmediately = false;
+
+            const c = counters.find(x => x.id === id);
+            if (c) {
+                c.lastAccessed = Date.now();
+                saveData();
+            }
+
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-selected', id }, location.origin);
+        };
+
+        window.openCounterSettings = function(id) {
+            currentView = id;
+            openSettingsImmediately = true;
+
+            const c = counters.find(x => x.id === id);
+            if (c) {
+                c.lastAccessed = Date.now();
+                saveData();
+            }
+
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-selected', id, openSettings: true }, location.origin);
+        };
+
+        function renderFullScreenCounter() {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) {
+                currentView = 'dashboard';
+                return renderApp();
+            }
+
+            const { bgColor, bgEmoji } = getCounterAppearance(c);
+            document.body.classList.remove('counter-dashboard');
+            applyBackgroundAppearance(document.body, bgColor, bgEmoji);
+            document.body.classList.toggle('counter-floating', counterDisplayMode === 'floating');
+            document.body.classList.toggle('counter-popup', counterDisplayMode === 'popup');
+            document.body.classList.toggle('counter-compact', counterDisplayMode.startsWith('split-') || counterDisplayMode === 'popup');
+            const btnClass = 'bg-black/10 text-gray-900 hover:bg-black/20';
+
+            let baseGoal = c.goal - 100;
+            let currentSpan = c.count - baseGoal;
+            if (currentSpan < 0) currentSpan = 0;
+            let progressPct = (currentSpan / 100) * 100;
+            if (progressPct > 100) progressPct = 100;
+
+            if (isCelebrating) {
+                progressPct = 100;
+            } else if (isDraining) {
+                progressPct = 0;
+            }
+
+            const liquidTransition = isDraining ? '1.5s' : '0.15s';
+            const stepVal = c.step || 1;
+
+            let html = `
+                <div id="counterStage" class="fixed inset-0 flex flex-col items-center justify-center cursor-pointer touch-none"
+                     onclick="handleTap(event)"
+                     ontouchstart="handleTouchStart(event)"
+                     ontouchend="handleTouchEnd(event)">
+
+                    <div id="counterHeader" class="absolute top-6 left-6 z-20 flex items-center gap-4">
+                        <button onclick="goBack(event)" class="${btnClass} p-3 rounded-full backdrop-blur-md transition-colors shadow-sm">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+                        </button>
+                        <span id="headerCounterName" class="font-nunito font-bold text-4xl sm:text-5xl tracking-tight px-3 py-1 text-gray-900" style="text-shadow: 0 4px 12px rgba(0,0,0,0.12);">${c.name || 'Counter'}</span>
+                    </div>
+
+                    <div id="counterRightControls" class="absolute top-6 right-6 z-20 flex items-center gap-3">
+                        <div id="headerGoalBadge" class="${btnClass} px-5 py-2.5 rounded-full font-extrabold backdrop-blur-md shadow-sm text-lg pointer-events-none">
+                            Goal: ${c.goal}
+                        </div>
+                        <button id="settingsButton" onclick="openSettings(event)" class="${btnClass} p-3 rounded-full backdrop-blur-md transition-colors shadow-sm">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="flex flex-col items-center z-10 w-full relative">
+                        <div id="ring-container" class="liquid-container mb-6" style="--ring-color: ${c.color}">
+                            <div id="liquidFillEl" class="liquid-fill" style="height: ${progressPct}%; transition: height ${liquidTransition} cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;"></div>
+                            <div id="liquidTextEl" class="liquid-text ${c.count >= 1000 ? 'shrink' : ''}">${c.count}</div>
+                        </div>
+
+                        <button id="decrementButton" onclick="handleMinus(event)" class="${btnClass} p-3 rounded-xl backdrop-blur-md shadow-md active:scale-95 transition-transform flex items-center justify-center absolute -bottom-24 sm:-bottom-32">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                        </button>
+                    </div>
+
+                </div>
+
+                <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex-col items-center justify-end sm:justify-center p-4">
+                    <div class="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-lg max-h-[88vh] overflow-y-auto shadow-2xl transform transition-transform" onclick="event.stopPropagation()">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="text-2xl font-black text-gray-900">Settings</h2>
+                            <button onclick="closeSettings(event)" class="bg-gray-100 text-gray-600 hover:bg-gray-200 p-2 rounded-full transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-500 uppercase tracking-wide mb-3">Ring & Liquid Color</label>
+                                <div class="grid grid-cols-10 gap-2" id="ringColorGrid"></div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Background Emoji</label>
+                                    <div class="grid grid-cols-5 gap-1" id="bgEmojiGrid"></div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Background Color</label>
+                                    <div class="grid grid-cols-4 gap-1.5" id="bgColorGrid"></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-8 pt-8 border-t-4 border-gray-100 space-y-6">
+                                <div class="text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adult Controls</div>
+
+                                <div class="w-full">
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Counter Name</label>
+                                    <input type="text" id="editName" value="${c.name || 'My Counter'}" oninput="liveUpdateAdultControls()" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-lg font-bold text-gray-900 focus:ring-4 focus:ring-blue-100 outline-none">
+                                </div>
+
+                                <div class="flex gap-4">
+                                    <div class="w-1/3">
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Count</label>
+                                        <input type="number" id="editCount" value="${c.count}" oninput="liveUpdateAdultControls()" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-lg font-bold text-gray-900 focus:ring-4 focus:ring-blue-100 outline-none">
+                                    </div>
+                                    <div class="w-1/3">
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Goal</label>
+                                        <input type="number" id="editGoal" value="${c.goal}" oninput="liveUpdateAdultControls()" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-lg font-bold text-gray-900 focus:ring-4 focus:ring-blue-100 outline-none">
+                                    </div>
+                                    <div class="w-1/3">
+                                        <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Step</label>
+                                        <input type="number" id="editStep" value="${stepVal}" oninput="liveUpdateAdultControls()" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-lg font-bold text-gray-900 focus:ring-4 focus:ring-blue-100 outline-none">
+                                    </div>
+                                </div>
+
+                                <div class="pt-4 border-t-2 border-gray-100 mt-4">
+                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Cloud Sync Code</label>
+                                    <p class="text-xs text-gray-400 mb-2 leading-tight">Enter a secret word on all your devices to link them together! (e.g. Apples123)</p>
+                                    <input type="text" id="editSyncCode" value="${syncCode}" onchange="liveUpdateSyncCode()" placeholder="Secret Code" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-lg font-bold text-gray-900 focus:ring-4 focus:ring-blue-100 outline-none">
+                                </div>
+
+                                <div class="pt-2 space-y-3 mt-4">
+                                    <button onclick="deleteCurrentCounter()" class="w-full bg-red-50 text-red-600 rounded-2xl py-3 font-bold active:scale-95 transition-transform">Delete Counter</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('app').innerHTML = html;
+            updateFloatingFillAppearance(c);
+
+            if (openSettingsImmediately) {
+                openSettings();
+                openSettingsImmediately = false;
+            }
+        }
+
+        window.handleTouchStart = function(e) {
+            if (e.target.closest('button') || e.target.closest('input')) return;
+            touchStartY = e.changedTouches[0].screenY;
+            isSwiping = false;
+        };
+
+        window.handleTouchEnd = function(e) {
+            if (e.target.closest('button') || e.target.closest('input')) return;
+            if (isCelebrating) return;
+            const endY = e.changedTouches[0].screenY;
+
+            if (endY - touchStartY > 40) {
+                isSwiping = true;
+                decreaseCount();
+            }
+        };
+
+        window.handleMinus = function(e) {
+            if (e) e.stopPropagation();
+            decreaseCount();
+        };
+
+        function decreaseCount() {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+
+            c.count -= (c.step || 1);
+            if (c.count < 0) c.count = 0;
+
+            playPopSound(true);
+            triggerRingAnim();
+            saveData();
+            renderFullScreenCounter();
+        }
+
+        function triggerRingAnim() {
+            const ring = document.getElementById('ring-container');
+            if (ring) {
+                ring.classList.remove('pulse-anim');
+                void ring.offsetWidth;
+                ring.classList.add('pulse-anim');
+            }
+        }
+
+        window.handleTap = function(e) {
+            if (isSwiping) {
+                isSwiping = false;
+                return;
+            }
+            if (isCelebrating) return;
+
+            if (e.target.closest('button') || e.target.closest('input')) return;
+
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+
+            c.count += (c.step || 1);
+            playPopSound(false);
+
+            triggerRingAnim();
+
+            if (c.count >= c.goal) {
+                isCelebrating = true;
+                playCelebrateSound();
+
+                c.goal = c.goal + 100;
+
+                if (typeof window.confetti === 'function') {
+                    window.confetti({
+                        particleCount: 1600,
+                        spread: 180,
+                        startVelocity: 60,
+                        origin: { y: 0.4 },
+                        colors: [c.color, '#ffffff', '#000000', '#facc15', '#f472b6', '#38bdf8']
+                    });
+                    setTimeout(() => {
+                        window.confetti({
+                            particleCount: 800,
+                            spread: 140,
+                            origin: { y: 0.5 },
+                            colors: [c.color, '#ffffff', '#facc15']
+                        });
+                    }, 300);
+                }
+
+                document.body.classList.add('celebration-active');
+
+                saveData();
+                renderFullScreenCounter();
+
+                setTimeout(() => {
+                    document.body.classList.remove('celebration-active');
+                    isCelebrating = false;
+                    isDraining = true;
+
+                    saveData();
+                    renderFullScreenCounter();
+
+                    setTimeout(() => {
+                        isDraining = false;
+                        renderFullScreenCounter();
+                    }, 1500);
+
+                }, 3000);
+
+                return;
+            }
+
+            saveData();
+            renderFullScreenCounter();
+        };
+
+        window.goBack = function(e) {
+            if (e) e.stopPropagation();
+            currentView = 'dashboard';
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-dashboard' }, location.origin);
+        };
+
+        window.openSettings = function(e) {
+            if (e) e.stopPropagation();
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+
+            // Normalize legacy theme properties into bgColor and bgEmoji
+            const { bgColor, bgEmoji } = getCounterAppearance(c);
+            c.bgColor = bgColor;
+            c.bgEmoji = bgEmoji;
+
+            const modal = document.getElementById('settingsModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            renderSettingsColors();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-settings-open' }, location.origin);
+        };
+
+        window.closeSettings = function(e) {
+            if (e) e.stopPropagation();
+            const modal = document.getElementById('settingsModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-settings-closed' }, location.origin);
+        };
+
+        window.selectRingColor = function(color) {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+            c.color = color;
+
+            const ringEl = document.getElementById('ring-container');
+            if (ringEl) ringEl.style.setProperty('--ring-color', color);
+
+            renderSettingsColors();
+            saveData();
+        };
+
+        window.selectBgEmoji = function(emoji) {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+            c.bgEmoji = emoji;
+            delete c.themeId;
+
+            applyBackgroundAppearance(document.body, c.bgColor || '#ffffff', emoji);
+            updateFloatingFillAppearance(c);
+            renderSettingsColors();
+            saveData();
+        };
+
+        window.selectBgColor = function(color) {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+            c.bgColor = color;
+            delete c.themeId;
+
+            applyBackgroundAppearance(document.body, color, c.bgEmoji || '');
+            updateFloatingFillAppearance(c);
+            renderSettingsColors();
+            saveData();
+        };
+
+        window.liveUpdateAdultControls = function() {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+
+            const nameInput = document.getElementById('editName');
+            const countInput = document.getElementById('editCount');
+            const goalInput = document.getElementById('editGoal');
+            const stepInput = document.getElementById('editStep');
+
+            if (nameInput) {
+                c.name = nameInput.value || 'My Counter';
+                const headerName = document.getElementById('headerCounterName');
+                if (headerName) headerName.textContent = c.name;
+            }
+            if (countInput && countInput.value !== '') {
+                const parsedCount = parseInt(countInput.value, 10);
+                if (!isNaN(parsedCount)) c.count = parsedCount;
+            }
+            if (goalInput && goalInput.value !== '') {
+                const parsedGoal = parseInt(goalInput.value, 10);
+                if (!isNaN(parsedGoal) && parsedGoal > 0) c.goal = parsedGoal;
+            }
+            if (stepInput && stepInput.value !== '') {
+                const parsedStep = parseInt(stepInput.value, 10);
+                if (!isNaN(parsedStep) && parsedStep > 0) c.step = parsedStep;
+            }
+
+            // Live update ring liquid and count display behind the modal
+            const textEl = document.getElementById('liquidTextEl');
+            if (textEl) {
+                textEl.textContent = c.count;
+                if (c.count >= 1000) textEl.classList.add('shrink');
+                else textEl.classList.remove('shrink');
+            }
+
+            const goalBadge = document.getElementById('headerGoalBadge');
+            if (goalBadge) {
+                goalBadge.textContent = `Goal: ${c.goal}`;
+            }
+
+            const fillEl = document.getElementById('liquidFillEl');
+            if (fillEl) {
+                let baseGoal = c.goal - 100;
+                let currentSpan = c.count - baseGoal;
+                if (currentSpan < 0) currentSpan = 0;
+                let progressPct = Math.min(100, (currentSpan / 100) * 100);
+                fillEl.style.height = `${progressPct}%`;
+            }
+
+            saveData();
+        };
+
+        window.liveUpdateSyncCode = function() {
+            const syncInput = document.getElementById('editSyncCode');
+            if (!syncInput) return;
+            const newSyncCode = syncInput.value.trim();
+            if (newSyncCode !== syncCode) {
+                syncCode = newSyncCode;
+                localStorage.setItem('countingApp_syncCode', syncCode);
+                if (db) {
+                    setupRealtimeSubscription();
+                }
+                saveData();
+            }
+        };
+
+        function renderSettingsColors() {
+            const c = counters.find(x => x.id === currentView);
+            if (!c) return;
+            const { bgColor, bgEmoji } = getCounterAppearance(c);
+
+            // 1. Ring & Liquid Color Grid
+            const ringGrid = document.getElementById('ringColorGrid');
+            if (ringGrid) {
+                ringGrid.innerHTML = ringColors.map(color => `
+                    <button type="button" onclick="selectRingColor('${color}')"
+                            class="aspect-square rounded-full flex items-center justify-center transition-transform ${c.color === color ? 'scale-125 ring-2 ring-offset-2 ring-gray-400 z-10 shadow-md' : 'hover:scale-110'}"
+                            style="background-color: ${color};"></button>
+                `).join('');
+            }
+
+            // 2. Left Column: Background Emojis (no background fill)
+            const emojiGrid = document.getElementById('bgEmojiGrid');
+            if (emojiGrid) {
+                emojiGrid.innerHTML = bgEmojis.map(emoji => {
+                    const isSelected = bgEmoji === emoji;
+                    const displayContent = emoji === ''
+                        ? `<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>`
+                        : emoji;
+                    return `
+                        <button type="button" onclick="selectBgEmoji('${emoji}')"
+                                class="aspect-square rounded-xl flex items-center justify-center text-xl bg-transparent transition-transform ${isSelected ? 'scale-110 ring-2 ring-gray-800 z-10' : 'hover:scale-105 opacity-85 hover:opacity-100'}"
+                                title="${emoji === '' ? 'No Emoji' : emoji}">
+                            ${displayContent}
+                        </button>
+                    `;
+                }).join('');
+            }
+
+            // 3. Right Column: Square Background Colors (20% lighter & 40% more transparent)
+            const bgGrid = document.getElementById('bgColorGrid');
+            if (bgGrid) {
+                bgGrid.innerHTML = bgColorOptions.map(color => {
+                    const isSelected = bgColor.toLowerCase() === color.toLowerCase();
+                    const transparentBg = getBgRgba(color);
+                    return `
+                        <button type="button" onclick="selectBgColor('${color}')"
+                                class="aspect-square rounded-lg transition-transform border ${color === '#ffffff' ? 'border-gray-300' : 'border-black/10'} ${isSelected ? 'scale-110 ring-2 ring-offset-1 ring-gray-800 z-10 shadow-sm' : 'hover:scale-105'}"
+                                style="background-color: ${transparentBg};"></button>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.deleteCurrentCounter = function() {
+            const idToDelete = currentView;
+            currentView = 'dashboard';
+            window.closeSettings();
+
+            counters = counters.filter(x => x.id !== idToDelete);
+            queueCounterDeletion(idToDelete);
+            saveData();
+            renderApp();
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-deleted' }, location.origin);
+        };
+
+        let counterDisplayMode = 'split';
+
+        window.addEventListener('message', (event) => {
+            if (event.origin !== location.origin || event.source !== window.parent) return;
+            if (event.data?.source !== 'kristens-words') return;
+
+            if (event.data.type === 'counter-set-mode') {
+                const requestedMode = event.data.mode;
+                counterDisplayMode = requestedMode === 'floating' || requestedMode === 'split-left' || requestedMode === 'split-right' || requestedMode === 'popup'
+                    ? requestedMode
+                    : 'split-left';
+                document.body.classList.toggle('counter-floating', counterDisplayMode === 'floating');
+                document.body.classList.toggle('counter-popup', counterDisplayMode === 'popup');
+                document.body.classList.toggle('counter-compact', counterDisplayMode.startsWith('split-') || counterDisplayMode === 'popup');
+                const currentCounter = counters.find((counter) => counter.id === currentView);
+                if (currentCounter) updateFloatingFillAppearance(currentCounter);
+            } else if (event.data.type === 'counter-show-dashboard') {
+                currentView = 'dashboard';
+                renderApp();
+            } else if (event.data.type === 'counter-open' && typeof event.data.id === 'string') {
+                window.openCounter(event.data.id);
+            } else if (event.data.type === 'counter-open-settings' && currentView !== 'dashboard') {
+                window.openSettings();
+            } else if (event.data.type === 'counter-decrease' && currentView !== 'dashboard') {
+                decreaseCount();
+            }
+        });
+
+        window.addEventListener('online', () => {
+            initializeFirebase();
+            syncPendingChanges();
+        });
+        window.addEventListener('focus', () => {
+            initializeFirebase();
+            syncPendingChanges();
+        });
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/counter/service-worker.js', { scope: '/counter/' })
+                .catch((error) => console.warn('Counter offline cache registration failed.', error));
+        }
+
+        initializeFirebase();
+        renderApp();
+    </script>
+</body>
+</html>

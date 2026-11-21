@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "build:counter-css": "tailwindcss -i src/components/counter/tailwind.input.css -o public/counter/tailwind.css --content public/counter/index.html --minify",
+    "dev": "npm run build:counter-css && vite",
+    "build": "npm run build:counter-css && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
