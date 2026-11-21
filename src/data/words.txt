@@ -1,0 +1,61 @@
+/l/
+initial: leaf, leg, log, loaf, lunch, lid, lip, leak, lamb, lion, list, lamp, lock, lake, lime, light, ladder, lemon, letter, llama
+medial: pillow, salad, toilet, yellow, belly, balloons, silly, color, elbow, goalie, island, bowling, elephant, eleven, helicopter, ballerina, broccoli, violin, marshmallows, umbrella
+pl: plane, plate, plug, planets, play, plus, plum, plow, plant, pliers, plumber, player
+bl: blue, blender, blocks, blow, black, blueberry, blinds, blimp, blanket, blonde, blouse, blow dry
+fl: flower, flag, fly, floor, flute, floss, flamingo, flip flops, flush, flat, flame, float
+gl: glue, glasses, glove, glow, glad, globe, glacier, glitter, glare, glass, glider, gloomy
+kl: clap, cloud, clock, clue, clip, club, click, cliff, climb, class, claw, clown
+sl: slide, sleep, slime, slam, slip, slug, sled, slice, slow, sling, slinky, slippers, sleeping bag, sleigh, sleeve, sloth
+
+/th/
+vd initial: the, then, they, there, that, than, this, these, those, they're, them, their
+vd medial: another, other, smoothie, brother, together, weather, bother, lather, clothing, gather, wither, bathing suit, leather, feather, either, breathing, father, mother, grandmother, grandfather
+vl intial: thumb, thank you, theatre, thirsty, thin, thick, thermos, Thursday, thirty, thorn, third, thing, thunder, thanksgiving, thief, thin, think, therapy, thermometer, thousand
+vl medial: toothbrush, toothpaste, toothpick, toothache, bathroom, bathtub, bathrobe, mouthwash, something, nothing, everything, birthday, earthquake, panther, python, author, athlete, stethoscope, healthy, filthy
+vl final: with, earth, tooth, mouth, north, south, cloth, breath, math, booth, path, teeth, month, broth, fourth, moth, both, wreath, bath, sloth
+thr: three, throw, through, thread, throat, throb, threat, throne, thrift
+
+/ng/
+1 syllable: king, bang, tongue, sing, long, hang, thing, strong, rung, swing, bang, lung, sting, song, wing, long, ring, wrong, spring, ping pong
+verbs: sleeping, swimming, blowing, eating, drinking, stirring, kicking, singing, jumping, sweeping, brushing, waking, crying, waving, reading, swinging, running, sitting, raising, cutting
+
+/s/
+ts: its, ants, bats, hats, rats, boots, mitts, notes, lights, pants, plates, dots
+initial: see, sit, soup, seal, sink, soap, salt, sock, sick, some, sun, sing, same, saw, soda, sad, six, seven, sign, sew
+medial: pencil, dresser, dinosaur, glasses, whistle, listen, messy, recess, baseball, muscle, princess, bracelet, medicine, December, braces, castle, popsicle, dancer, classroom, grasshopper
+final: dress, bus, horse, ice, house, grass, mouse, mice, kiss, yes, pass, miss, boss, goose, geese, gas, hiss, palace, office, erase
+
+/z/
+initial: z, zebra, zip, zoo, zero, zucchini, zoe, zig zag, zack, zoom, zest, zamboni
+medial: present, lizard, music, busy, lazy, noisy, puzzle, jersey, newspaper, raspberry, cheeseburger, cozy, dizzy, wizard, dozen, desert, raisin, museum, Tuesday, thursday
+final: bees, sneeze, please, freeze, lose, prize, clothes, eyes, hose, cheese, boys, pigs, fries, shoes, toes, dogs, cows, keys, nose, knees
+
+/sh/
+initial: ship, sheep, shirt, shoe, shorts, shapes, shave shoulders, shadow, share, she shark, shampoo, shower, shovel, sheets, shake, shed, shells, shore
+medial: seashells, sushi, dishes, lotion, fishing, caution, ocean, cashews, cushion, bookshelf, milkshake, flashlight, station, spaceship, horseshoe, marshmallow, emotion, magician, location, parachute
+final: fish, brush, splash, crush, leash, bush, crash, flush, trash, dish, push, wish, dash, wash, paintbrush, squish, finish, toothbrush, eyelash, cash
+
+/ch/
+initial: chew, chip, chalk, chair, check, cheer, chick, cheek, chase, choose, cherry, chess, chain, cheetah, chest, chili, chop, child, cheese, chin
+medial: teacher, kitchen, nachos, ketchup, matches, nature, orchard, witches, catcher, pitcher, picture, lunchbox, reaching, statue, question, crutches, marching, vulture, wheelchair, creature
+final: watch, couch, witch, reach, hatch, catch, peach, wrench, porch, lunch, rich, beach, itch, coach, march, punch, ranch, speech, bench, pinch
+
+/k/
+initial: cow, cat, key, car, corn, coat, cut, kiwi, cone, kiss, cave, cough, kite, cage, call, cake, king, color, carrot, candle
+medial: monkey, bucket, cookie, hockey, turkey, biking, jacket, raccoon, vacuum, soccer, rocket, broccoli, bacon, taco, raking, marker, pumpkin, breakfast, necklace, haircut
+final: bike, kick, lake, snake, leak, sick, sock, rake, knock, shark, beak, book, cake, hike, hook, duck, lock, walk, milk, lick
+
+/g/
+initial: go, game, gum, goose, good, gas, goat, gift, ghost, golf, green, gate, grey, girl, give, glue, guitar, garlic, goalie, garbage
+medial: wagon, tiger, finger, burger, lego, piggy, sugar, yogurt, dragon, angry, seagull, bagel, goggles, mango, bingo, magnet, yoga, bigger, eagle, kangaroo
+final: bug, frog, leg, dog, big, log, dig, flag, egg, twig, pig, beg, wag, rug, wig, bag, hug, fog, plug, mug
+
+/s/ blends
+st: stop, stairs, stick, stove, stir, star, sticky, stool, stickers, stem, store, stamp, storm, start, stinky, stack, stew, stain, stand, staple
+sp: spoon, spill, sponge, spices, spinach, spaghetti, spiderweb, spin, speech, spider, spell, spotted, speak, spit, space, sports, sparkler, spout, spots, spa
+sk: ski, skirt, scooter, skunk, skip, skeleton, school, scoop, sky, scarecrow, scared, skin, skateboard, scale, skate, school bus, scar, skittles, scarf, scab
+sm: small, smell, smile, smoke, smore, smash, smarties, smush, smooth, smart, smear, smock
+sn: snowman, snuggle, snap, snout, snack, sniff, snake, snowball, sneaker, snow pants, snail, snip, snow, snap, snore, snooze, snorkel, sneeze, sneak, snowflake
+sl: slide, sleep, slime, slam, slip, slug, sled, slice, slow, sling, slinky, slippers, sleeping bag, sleigh, sleeve, sloth
+sw: swim, sweat, sweet, swing, sweep, sweater, swan, swirl, swarm, swab, switch, swipe, swap, swamp, swish, swallow, swiss, swat, swell, sweet potato

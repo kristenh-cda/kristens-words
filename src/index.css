@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Bubble';
+  src: url('/fonts/Bubble.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Jenthill';
+  src: url('/fonts/Jenthill.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-title {
+  font-family: 'Jenthill', 'Bubble', 'Comic Sans MS', cursive;
+}
+
+/* Hyphens in the title render in the original Bubble font */
+.font-hyphen {
+  font-family: 'Bubble', 'Comic Sans MS', cursive;
+}
+
+/* Card paging: outgoing card slides off, incoming card slides in from the
+   opposite side. */
+@keyframes card-enter-left {
+  from { transform: translateX(-60%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes card-enter-right {
+  from { transform: translateX(60%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-card-enter-left {
+  animation: card-enter-left 200ms ease-out;
+}
+.animate-card-enter-right {
+  animation: card-enter-right 200ms ease-out;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@layer components {
+  .action-btn {
+    @apply flex items-center justify-center gap-1.5 px-6 py-2 rounded-lg text-white font-semibold text-xs transition-colors;
+  }
+}

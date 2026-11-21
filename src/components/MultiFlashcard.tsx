@@ -1,0 +1,361 @@
+import { useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Shuffle, Mic, Square, Play, RotateCcw, Check, Minus, X, PlayCircle, RefreshCw, Layers, Undo2 } from 'lucide-react';
+import { FlashcardView, type CardSlot } from '@/components/FlashcardView';
+import { CardCountStepper } from '@/components/CardCountStepper';
+import { DeckPreview } from '@/components/DeckPreview';
+import { GamesIcon } from '@/components/GamesIcon';
+import { DataPillWidget } from '@/components/DataPillWidget';
+import { useRecorder } from '@/hooks/useRecorder';
+import { SettingsIconButton, type FlashcardSettings } from '@/components/FlashcardSettings';
+
+type Props = {
+  slots: CardSlot[];
+  total: number; // total words in the deck
+  start: number; // global index of the first slot shown
+  loopCount: number; // increments on each deck wrap; baked into card keys for fresh remounts
+  pageSize: number;
+  seenSet: Set<number>;
+  fullscreen: boolean;
+  cardCount: number;
+  onCardCountChange: (n: number) => void;
+  /** Sub-most category labels selected (e.g. ["/gr/", "/kr/"]). */
+  subLabels: string[];
+  /** Slots for deck preview. */
+  previewSlots: CardSlot[];
+  onNext: () => void;
+  onPrev: () => void;
+  onShuffle?: () => void;
+  onUnshuffle?: () => void;
+  shuffled?: boolean;
+  showMixedBadge?: boolean;
+  onCorrect: () => void;
+  onTryAgain: () => void;
+  onSeen: (i: number) => void;
+  onToggleFullscreen: () => void;
+  onSwapCard: (pageOffset: number) => void;
+  settings: FlashcardSettings;
+  onShowSettings: () => void;
+  onConfirmSelection?: (selected: CardSlot[]) => void;
+};
+
+const SWIPE_MS = 180;
+
+export function MultiFlashcard({
+  slots,
+  total,
+  start,
+  loopCount,
+  pageSize,
+  seenSet,
+  fullscreen,
+  cardCount,
+  onCardCountChange,
+  subLabels,
+  previewSlots,
+  onNext,
+  onPrev,
+  onShuffle,
+  onUnshuffle,
+  shuffled,
+  showMixedBadge,
+  onCorrect,
+  onTryAgain,
+  onSeen,
+  onToggleFullscreen,
+  onSwapCard,
+  settings,
+  onShowSettings,
+  onConfirmSelection,
+}: Props) {
+  const { status, error, record, stopRecording, playback, reset } = useRecorder();
+  const touchStartX = useRef<number | null>(null);
+  const [swipe, setSwipe] = useState<'left' | 'right' | null>(null);
+  const [enterFrom, setEnterFrom] = useState<'left' | 'right' | null>(null);
+  const [pillLeft, setPillLeft] = useState(false);
+  const [showPill, setShowPill] = useState(true);
+
+  const cols = Math.min(slots.length, 6);
+  const gridCols =
+    cols === 1
+      ? 'grid-cols-1'
+      : cols === 2
+      ? 'grid-cols-1 sm:grid-cols-2'
+      : cols === 3
+      ? 'grid-cols-1 sm:grid-cols-3'
+      : cols === 4
+      ? 'grid-cols-2 lg:grid-cols-4'
+      : 'grid-cols-2 sm:grid-cols-3';
+
+  const canPrev = start > 0;
+  const canNext = total > 0;
+
+  const goNext = () => {
+    if (swipe || !canNext) return;
+    setSwipe('left');
+    setTimeout(() => {
+      onNext();
+      setSwipe(null);
+      setEnterFrom('right');
+    }, SWIPE_MS);
+  };
+  const goPrev = () => {
+    if (swipe || !canPrev) return;
+    setSwipe('right');
+    setTimeout(() => {
+      onPrev();
+      setSwipe(null);
+      setEnterFrom('left');
+    }, SWIPE_MS);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0) {
+      goNext();
+    } else {
+      goPrev();
+    }
+  };
+
+  const recordButton = () => {
+    if (status === 'idle') {
+      return (
+        <button onClick={record} className="action-btn bg-blue-600 hover:bg-blue-700" title="Record">
+          <Mic className="w-4 h-4" />
+        </button>
+      );
+    }
+    if (status === 'recording') {
+      return (
+        <button onClick={stopRecording} className="action-btn bg-red-600 hover:bg-red-700 animate-pulse" title="Stop">
+          <Square className="w-4 h-4" />
+        </button>
+      );
+    }
+    return (
+      <div className="flex gap-1">
+        <button onClick={playback} className="action-btn bg-blue-600 hover:bg-blue-700" title="Play">
+          <Play className="w-4 h-4" />
+        </button>
+        <button onClick={reset} className="px-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" title="Record again">
+          <RotateCcw className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
+  // With 4-6 cards, scale the grid down so every card fits one screen
+  // regardless of viewport size.
+  const fitStyle =
+    cols >= 4
+      ? ({
+          // every wrapped row shrinks equally; cards compress, never overflow
+          gridTemplateRows: `repeat(${cols === 4 ? 1 : 2}, minmax(0, 1fr))`,
+        } as React.CSSProperties)
+      : undefined;
+
+  const fitWrapperClass = 'w-full h-full min-h-0 flex items-stretch justify-center';
+
+  const fitGridClass = `grid ${gridCols} gap-2 sm:gap-3 w-full h-full min-h-0`;
+
+  const swipeClass =
+    swipe === 'left'
+      ? '-translate-x-full opacity-0'
+      : swipe === 'right'
+      ? 'translate-x-full opacity-0'
+      : enterFrom === 'left'
+      ? 'animate-card-enter-left'
+      : enterFrom === 'right'
+      ? 'animate-card-enter-right'
+      : 'translate-x-0 opacity-100';
+
+  if (fullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
+        <div
+          className="flex-1 min-h-0 p-1 sm:p-2 overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div
+            key={`${start}-${enterFrom ?? 'static'}`}
+            className={`w-full h-full transition-all duration-200 ease-in ${swipeClass}`}
+          >
+            <div className={fitWrapperClass}>
+              <div className={fitGridClass} style={fitStyle}>
+                {slots.map((slot, i) => {
+                  const globalIndex = start + i;
+                  return (
+                    <div key={`${slot.id ?? (slot.inst !== undefined ? `inst-${slot.inst}` : `${globalIndex}-${slot.word}`)}-p${loopCount}-${i}`} className="relative min-h-0 min-w-0 h-full">
+                      <FlashcardView
+                        slot={slot}
+                        index={globalIndex}
+                        total={total}
+                        seen={seenSet.has(globalIndex)}
+                        fullscreen
+                        showCardCount={settings.showCardCount}
+                        showText={settings.showText}
+                        onSeen={() => onSeen(globalIndex)}
+                        onSwapCard={settings.showSwapButton ? onSwapCard : undefined}
+                        pageOffset={i}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {settings.showDataPill && (
+          <DataPillWidget
+            correct={0}
+            tries={0}
+            dockedLeft={pillLeft}
+            onToggleSide={() => setPillLeft((p) => !p)}
+            visible={showPill}
+            onToggleVisible={() => setShowPill((v) => !v)}
+          />
+        )}
+
+        {/* Bottom bar (not overlay) */}
+        <div className="shrink-0 bg-black/60 backdrop-blur px-3 py-3">
+          <div className="max-w-4xl mx-auto flex items-center gap-2 flex-wrap">
+            {/* Left corner: mic (optional) + check/dash when anchored left */}
+            <div className="flex items-center gap-2">
+              {settings.showRecordButton && recordButton()}
+              {settings.feedbackButtons === 'left' && (
+                <>
+                  <button onClick={onCorrect} className="action-btn bg-green-500 hover:bg-green-600 active:scale-95">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button onClick={onTryAgain} className="action-btn bg-orange-500 hover:bg-orange-600 active:scale-95">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Centered prev / next (plus check/dash when centered) */}
+            <div className="flex items-center gap-2 flex-wrap mx-auto">
+              {settings.feedbackButtons === 'center' && (
+                <>
+                  <button onClick={onCorrect} className="action-btn bg-green-500 hover:bg-green-600 active:scale-95">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button onClick={onTryAgain} className="action-btn bg-orange-500 hover:bg-orange-600 active:scale-95">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+              <button onClick={goPrev} disabled={!canPrev} className="action-btn px-6 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:scale-95 disabled:opacity-40 disabled:hover:bg-white">
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-3 py-1 rounded-full bg-gray-800 text-white text-sm font-semibold tabular-nums">
+                {start + 1}/{total}
+              </span>
+              <button onClick={goNext} disabled={!canNext} className="action-btn px-6 bg-gray-700 text-white hover:bg-gray-800 active:scale-95 disabled:opacity-40 disabled:hover:bg-gray-700">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Right corner: check/dash when anchored right, then exit */}
+            <div className="flex items-center gap-2">
+              {settings.feedbackButtons === 'right' && (
+                <>
+                  <button onClick={onCorrect} className="action-btn bg-green-500 hover:bg-green-600 active:scale-95">
+                    <Check className="w-4 h-4" />
+                  </button>
+                  <button onClick={onTryAgain} className="action-btn bg-orange-500 hover:bg-orange-600 active:scale-95">
+                    <Minus className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+              <button
+                onClick={onToggleFullscreen}
+                className="action-btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:scale-95"
+                title="Exit fullscreen"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="mt-1 text-center text-xs text-red-400">{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  // Regular (non-fullscreen) view: compact lobby.
+  return (
+    <div className="w-full">
+      <div className="flex flex-col items-center justify-center gap-4 py-8">
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* Card counter stepper */}
+          <CardCountStepper value={cardCount} min={1} max={6} onChange={onCardCountChange} />
+
+          <button
+            onClick={onShuffle ?? (() => {})}
+            className={`inline-flex items-center gap-2 px-4 h-10 rounded-full text-lg font-semibold transition-colors active:scale-95 border ${
+              shuffled
+                ? 'bg-indigo-600 text-white border-indigo-700 shadow-md shadow-indigo-300 hover:bg-indigo-700'
+                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+            }`}
+            title={shuffled ? 'Deck is shuffled' : 'Shuffle the deck'}
+          >
+            <Shuffle className="w-5 h-5" />
+            {shuffled ? 'Shuffled' : 'Shuffle'}
+          </button>
+          {shuffled && onUnshuffle && (
+            <button
+              onClick={onUnshuffle}
+              className="w-10 h-10 rounded-full bg-white text-gray-500 border border-gray-200 hover:bg-gray-50 hover:text-gray-800 flex items-center justify-center transition-colors active:scale-95"
+              title="Un-shuffle the deck"
+            >
+              <Undo2 className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {showMixedBadge && (
+            <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full bg-indigo-600 text-white" title="Mixed mode">
+              <Layers className="w-3.5 h-3.5" />
+            </span>
+          )}
+          {/* Sub-most category labels */}
+          {subLabels.length > 0 && (
+            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200">
+              {subLabels.join(', ')}
+            </span>
+          )}
+
+          {/* Card count text */}
+          <span className="px-2.5 py-1.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium tabular-nums">
+            {total} cards
+          </span>
+
+          <SettingsIconButton onClick={onShowSettings} />
+        </div>
+
+        <div className="flex items-center justify-center gap-3">
+          <DeckPreview slots={previewSlots} total={total} onConfirmSelection={onConfirmSelection} />
+          <button
+            onClick={onToggleFullscreen}
+            className="inline-flex items-center gap-3 px-10 py-4 rounded-full bg-[#4a5378] text-white text-2xl font-semibold hover:bg-[#3d4568] active:scale-95 transition-colors shadow-lg"
+          >
+            <PlayCircle className="w-8 h-8" />
+            Begin
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
