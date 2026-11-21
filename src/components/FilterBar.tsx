@@ -18,6 +18,7 @@ type Props = {
   multiMode: boolean;
   multiSelected: Set<string>;
   onToggleMultiMode: () => void;
+  onMultiToggleCategory: (categoryId: string) => void;
   onMultiToggleSub: (subId: string) => void;
   onMultiToggleGroup: (subId: string, groupId: string) => void;
 };
@@ -57,6 +58,7 @@ export function FilterBar({
   multiMode,
   multiSelected,
   onToggleMultiMode,
+  onMultiToggleCategory,
   onMultiToggleSub,
   onMultiToggleGroup,
 }: Props) {
@@ -79,6 +81,10 @@ export function FilterBar({
     const keys = subSourceKeys(s);
     return keys.length > 0 && keys.every((k) => multiSelected.has(k));
   };
+  const isCategorySelected = (c: SoundCategory) => {
+    const keys = c.subcategories.flatMap(subSourceKeys);
+    return keys.length > 0 && keys.every((k) => multiSelected.has(k));
+  };
 
   const multiButton = (inGroupsRow: boolean) => (
     <button
@@ -93,6 +99,20 @@ export function FilterBar({
       }`}
     >
       <Boxes className="w-4 h-4" />
+    </button>
+  );
+
+  const categoryMultiButton = (
+    <button
+      onClick={onToggleMultiMode}
+      aria-pressed={multiMode}
+      aria-label="Select multiple main categories"
+      title="Select multiple main categories"
+      className={`flex h-12 w-10 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 active:scale-95 ${
+        multiMode ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
+      }`}
+    >
+      <Boxes className="h-5 w-5" />
     </button>
   );
 
@@ -186,12 +206,15 @@ export function FilterBar({
     row.length > 0 && (
       <div key={rowIndex} className="flex flex-wrap items-center justify-center gap-2">
         {row.map((c) => {
-          const active = c.id === categoryId;
+          const active = multiMode ? isCategorySelected(c) : c.id === categoryId;
           const empty = c.disabled || c.subcategories.length === 0 || !isSelectableCategory(c.id);
           return (
             <button
               key={c.id}
-              onClick={() => onCategoryChange(c.id)}
+              onClick={() => {
+                if (multiMode) onMultiToggleCategory(c.id);
+                else onCategoryChange(c.id);
+              }}
               disabled={empty}
               aria-pressed={active}
               title={empty ? 'Coming soon' : undefined}
@@ -207,16 +230,21 @@ export function FilterBar({
         })}
 
         {/* Inline Early Sounds Toggle placed at the END of Row 2 (rowIndex === 1) */}
-        {mode !== 'language' && rowIndex === 1 && (
-          <button
-            onClick={() => setEarlySoundsOpen((o) => !o)}
-            aria-expanded={earlySoundsOpen}
-            aria-label="Early sounds"
-            title="Early sounds"
-            className="w-12 h-12 rounded-full border transition-all duration-200 bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center shrink-0 active:scale-95"
-          >
-            {earlySoundsOpen ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
-          </button>
+        {rowIndex === 1 && (
+          <>
+            {mode !== 'language' && (
+              <button
+                onClick={() => setEarlySoundsOpen((o) => !o)}
+                aria-expanded={earlySoundsOpen}
+                aria-label="Early sounds"
+                title="Early sounds"
+                className="w-12 h-12 rounded-full border transition-all duration-200 bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50 flex items-center justify-center shrink-0 active:scale-95"
+              >
+                {earlySoundsOpen ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+              </button>
+            )}
+            {categoryMultiButton}
+          </>
         )}
       </div>
     )
@@ -226,12 +254,15 @@ export function FilterBar({
   {mode !== 'language' && earlySoundsOpen && (
     <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
       {earlySounds.map((c) => {
-        const active = c.id === categoryId;
+    const active = multiMode ? isCategorySelected(c) : c.id === categoryId;
         const empty = c.disabled || c.subcategories.length === 0 || !isSelectableCategory(c.id);
         return (
           <button
             key={c.id}
-            onClick={() => onCategoryChange(c.id)}
+        onClick={() => {
+          if (multiMode) onMultiToggleCategory(c.id);
+          else onCategoryChange(c.id);
+        }}
             disabled={empty}
             aria-pressed={active}
             title={empty ? 'Coming soon' : undefined}

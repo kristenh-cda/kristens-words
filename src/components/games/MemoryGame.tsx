@@ -15,7 +15,6 @@ import { MixedModePicker } from '@/components/MixedModePicker';
 import { isSelectableCategory } from '@/components/pickerGroups';
 import { r2ImagePaths, applyRememberedStage } from '@/lib/images';
 import { FlashcardImage } from '@/components/FlashcardImage';
-import { DataStats } from '@/components/DataStats';
 import { DataPillWidget } from '@/components/DataPillWidget';
 import { formatWordDisplay } from '@/lib/formatters';
 
@@ -75,13 +74,6 @@ function gridColsFor(total: number): number {
   if (total <= 12) return 4;
   if (total <= 16) return 4;
   return 5;
-}
-
-function gridRowsFor(total: number): number {
-  if (total <= 6) return 2;
-  if (total <= 12) return 3;
-  if (total <= 16) return 4;
-  return 4;
 }
 
 function categoryForSource(source: SelectableSource): SoundCategory {
@@ -264,24 +256,45 @@ export function MemoryGame({ mode, onClose }: Props) {
   // live above the wizard's early return below.
   const boardRef = useRef<HTMLDivElement>(null);
   const [cellSize, setCellSize] = useState(96);
-  const boardCols = gridColsFor(cards.length);
-  const boardRows = gridRowsFor(cards.length);
+  const [boardAvailableWidth, setBoardAvailableWidth] = useState(0);
   const boardGap = 8;
+  const preferredCols = gridColsFor(cards.length);
+  const fittingCols = boardAvailableWidth > 0
+    ? Math.max(1, Math.floor((boardAvailableWidth + boardGap) / (44 + boardGap)))
+    : preferredCols;
+  const boardCols = Math.min(preferredCols, fittingCols);
+  const boardRows = Math.ceil(cards.length / boardCols);
+
+  const dataWidget = (
+    <DataPillWidget
+      correct={correctCount}
+      tries={tryCount}
+      dockedLeft={pillLeft}
+      onToggleSide={() => setPillLeft((side) => !side)}
+      visible={showData}
+      onToggleVisible={() => setShowData((visible) => !visible)}
+      showScoreButtons
+      onCorrect={() => setCorrectCount((n) => n + 1)}
+      onTryAgain={() => setTryCount((n) => n + 1)}
+      sidebar
+    />
+  );
 
   useLayoutEffect(() => {
     if (cards.length === 0) return;
     const el = boardRef.current;
     if (!el) return;
     const update = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
+      const w = Math.max(0, el.clientWidth - 32);
+      const h = Math.max(0, el.clientHeight - 32);
+      setBoardAvailableWidth(w);
       const size = Math.floor(
         Math.min(
           (w - boardGap * (boardCols - 1)) / boardCols,
           (h - boardGap * (boardRows - 1)) / boardRows,
         ),
       );
-      setCellSize(Math.max(48, size));
+      setCellSize(Math.max(44, size));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -452,106 +465,105 @@ export function MemoryGame({ mode, onClose }: Props) {
   // ================================ GAME BOARD ================================
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-400 flex flex-col">
-      {/* Top bar with exit */}
-      <div className="shrink-0 flex justify-end px-4 py-3 relative z-20">
-        <button
-          onClick={onClose}
-          className="w-9 h-9 rounded-full bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 flex items-center justify-center shadow-sm transition-colors"
-          title="Exit game"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
+    <div className="fixed inset-0 z-50 flex bg-gray-400">
+      <aside className="flex w-16 shrink-0 flex-col items-center border-0 bg-transparent px-1 py-3">
+        <div className="mt-auto">
+          {pillLeft && dataWidget}
+        </div>
+      </aside>
 
-      <div ref={boardRef} className="flex-1 min-h-0 flex items-center justify-center px-4 pb-6">
-        <div
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(${boardCols}, ${cellSize}px)`,
-            gridAutoRows: `${cellSize}px`,
-            gap: `${boardGap}px`,
-          }}
-        >
-          {cards.map((card) => {
-            const isUp = flipped.includes(card.id) || matched.has(card.id);
-            const isMatched = matched.has(card.id);
-            return (
-              <button
-                key={card.id}
-                onClick={() => handleCardClick(card)}
-                className={`relative w-full h-full rounded-xl overflow-hidden shadow-md transition-all duration-300 select-none focus:outline-none ${
-                  isMatched ? 'ring-4 ring-green-400' : ''
-                } ${!isUp && locked ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-[1.03]'}`}
-              >
-                {isUp ? (
-                  <div className="absolute inset-0 bg-white flex flex-col">
-                    <div className="flex-1 min-h-0">
-                      <FlashcardImage
-                        word={card.word}
-                        category={categoryForSource(card.source)}
-                        subId={card.source.subId}
-                        groupId={card.source.groupId}
+      <main className="flex min-w-0 flex-1 flex-col">
+        <div ref={boardRef} className="flex min-h-0 flex-1 items-center justify-center px-4 py-4">
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(${boardCols}, ${cellSize}px)`,
+              gridAutoRows: `${cellSize}px`,
+              gap: `${boardGap}px`,
+            }}
+          >
+            {cards.map((card) => {
+              const isUp = flipped.includes(card.id) || matched.has(card.id);
+              const isMatched = matched.has(card.id);
+              return (
+                <button
+                  key={card.id}
+                  onClick={() => handleCardClick(card)}
+                  className={`relative w-full h-full rounded-xl overflow-hidden shadow-md transition-all duration-300 select-none focus:outline-none ${
+                    isMatched ? 'ring-4 ring-green-400' : ''
+                  } ${!isUp && locked ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-[1.03]'}`}
+                >
+                  {isUp ? (
+                    <div className="absolute inset-0 bg-white flex flex-col">
+                      <div className="flex-1 min-h-0">
+                        <FlashcardImage
+                          word={card.word}
+                          category={categoryForSource(card.source)}
+                          subId={card.source.subId}
+                          groupId={card.source.groupId}
+                        />
+                      </div>
+                      <div className="shrink-0 px-1 py-1 text-center">
+                        <span className="text-[10px] sm:text-xs font-medium text-gray-700 block w-full truncate leading-tight">
+                          {formatWordDisplay(card.word, card.source.categoryId, card.source.subId)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-white">
+                      <img
+                        src={CARD_BACK_URL}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover"
+                        draggable={false}
                       />
                     </div>
-                    <div className="shrink-0 px-1 py-1 text-center">
-                      <span className="text-[10px] sm:text-xs font-medium text-gray-700 block w-full truncate leading-tight">
-                        {formatWordDisplay(card.word, card.source.categoryId, card.source.subId)}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 bg-white">
-                    <img
-                      src={CARD_BACK_URL}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover"
-                      draggable={false}
-                    />
-                  </div>
-                )}
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Completion bar stays beside the controls without covering the cards. */}
+        {gameComplete && (
+          <div className="shrink-0 relative z-20 bg-green-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 shrink-0" />
+              <span className="font-bold text-sm sm:text-base">Great job! You matched all {pairsNeeded} pairs!</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={playAgain}
+                className="px-4 py-1.5 rounded-lg bg-white text-green-600 font-semibold text-xs sm:text-sm hover:bg-green-50 transition-colors"
+              >
+                Play Again
               </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Data tracking bottom-right (dockable); scoring is manual */}
-      <DataPillWidget
-        correct={correctCount}
-        tries={tryCount}
-        dockedLeft={pillLeft}
-        onToggleSide={() => setPillLeft((p) => !p)}
-        visible={showData}
-        onToggleVisible={() => setShowData((v) => !v)}
-        showScoreButtons
-        onCorrect={() => setCorrectCount((n) => n + 1)}
-        onTryAgain={() => setTryCount((n) => n + 1)}
-      />
-
-      {/* Completion bar at the top — no dimming, board stays fully visible */}
-      {gameComplete && (
-        <div className="shrink-0 relative z-20 bg-green-500 text-white px-4 py-2.5 flex items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 shrink-0" />
-            <span className="font-bold text-sm sm:text-base">Great job! You matched all {pairsNeeded} pairs!</span>
+              <button
+                onClick={newGame}
+                className="px-4 py-1.5 rounded-lg bg-green-700 text-white font-semibold text-xs sm:text-sm hover:bg-green-800 transition-colors"
+              >
+                New Game
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={playAgain}
-              className="px-4 py-1.5 rounded-lg bg-white text-green-600 font-semibold text-xs sm:text-sm hover:bg-green-50 transition-colors"
-            >
-              Play Again
-            </button>
-            <button
-              onClick={newGame}
-              className="px-4 py-1.5 rounded-lg bg-green-700 text-white font-semibold text-xs sm:text-sm hover:bg-green-800 transition-colors"
-            >
-              New Game
-            </button>
-          </div>
+        )}
+      </main>
+
+      <aside className="flex w-16 shrink-0 flex-col items-center gap-3 border-0 bg-transparent px-1 py-3">
+        <button
+          onClick={onClose}
+          aria-label="Exit game"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          title="Exit game"
+        >
+          <X className="h-5 w-5" />
+        </button>
+        <div className="mt-auto">
+          {!pillLeft && dataWidget}
         </div>
-      )}
+      </aside>
+
       {showConfetti && <ConfettiBurst pieces={confettiPieces} />}
     </div>
   );

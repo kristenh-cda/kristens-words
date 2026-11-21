@@ -7,7 +7,7 @@ type Props = {
   onChange: (v: number) => void;
 };
 
-export function CardCountStepper({ value, min = 1, max = 6, onChange }: Props) {
+export function CardCountStepper({ value, min = 1, max = 10, onChange }: Props) {
   const dec = () => onChange(Math.max(min, value - 1));
   const inc = () => onChange(Math.min(max, value + 1));
   return (

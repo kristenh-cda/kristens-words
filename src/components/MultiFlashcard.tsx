@@ -1,16 +1,19 @@
 import { useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Shuffle, Mic, Square, Play, RotateCcw, Check, Minus, X, PlayCircle, RefreshCw, Layers, Undo2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Shuffle, Check, Minus, X, PlayCircle, RefreshCw, Layers, Undo2 } from 'lucide-react';
 import { FlashcardView, type CardSlot } from '@/components/FlashcardView';
 import { CardCountStepper } from '@/components/CardCountStepper';
 import { DeckPreview } from '@/components/DeckPreview';
 import { GamesIcon } from '@/components/GamesIcon';
-import { DataPillWidget } from '@/components/DataPillWidget';
+import { DataStats } from '@/components/DataStats';
 import { useRecorder } from '@/hooks/useRecorder';
+import { RecordingControls } from '@/components/RecordingControls';
 import { SettingsIconButton, type FlashcardSettings } from '@/components/FlashcardSettings';
 
 type Props = {
   slots: CardSlot[];
   total: number; // total words in the deck
+  correct: number;
+  tries: number;
   start: number; // global index of the first slot shown
   loopCount: number; // increments on each deck wrap; baked into card keys for fresh remounts
   pageSize: number;
@@ -32,17 +35,20 @@ type Props = {
   onTryAgain: () => void;
   onSeen: (i: number) => void;
   onToggleFullscreen: () => void;
-  onSwapCard: (pageOffset: number) => void;
+  onSwapCard?: (pageOffset: number) => void;
   settings: FlashcardSettings;
   onShowSettings: () => void;
   onConfirmSelection?: (selected: CardSlot[]) => void;
 };
 
 const SWIPE_MS = 180;
+const SWIPE_THRESHOLD = 80;
 
 export function MultiFlashcard({
   slots,
   total,
+  correct,
+  tries,
   start,
   loopCount,
   pageSize,
@@ -67,26 +73,31 @@ export function MultiFlashcard({
   onShowSettings,
   onConfirmSelection,
 }: Props) {
-  const { status, error, record, stopRecording, playback, reset } = useRecorder();
-  const touchStartX = useRef<number | null>(null);
+  const recorder = useRecorder();
+  const { error } = recorder;
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const [swipe, setSwipe] = useState<'left' | 'right' | null>(null);
   const [enterFrom, setEnterFrom] = useState<'left' | 'right' | null>(null);
-  const [pillLeft, setPillLeft] = useState(false);
-  const [showPill, setShowPill] = useState(true);
 
-  const cols = Math.min(slots.length, 6);
+  const visibleCardCount = slots.length;
   const gridCols =
-    cols === 1
+    visibleCardCount === 9
+      ? 'grid-cols-3 lg:grid-cols-5'
+      : visibleCardCount > 6
+      ? visibleCardCount <= 8
+        ? 'grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4'
+        : 'grid-cols-2 min-[400px]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-5'
+      : visibleCardCount === 1
       ? 'grid-cols-1'
-      : cols === 2
+      : visibleCardCount === 2
       ? 'grid-cols-1 sm:grid-cols-2'
-      : cols === 3
+      : visibleCardCount === 3
       ? 'grid-cols-1 sm:grid-cols-3'
-      : cols === 4
+      : visibleCardCount === 4
       ? 'grid-cols-2 lg:grid-cols-4'
       : 'grid-cols-2 sm:grid-cols-3';
 
-  const canPrev = start > 0;
+  const canPrev = total > 0;
   const canNext = total > 0;
 
   const goNext = () => {
@@ -109,13 +120,21 @@ export function MultiFlashcard({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+    if (e.target instanceof Element && e.target.closest('button')) {
+      touchStart.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 50) return;
+    const start = touchStart.current;
+    if (!start) return;
+    touchStart.current = null;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.25) return;
     if (dx < 0) {
       goNext();
     } else {
@@ -124,41 +143,8 @@ export function MultiFlashcard({
   };
 
   const recordButton = () => {
-    if (status === 'idle') {
-      return (
-        <button onClick={record} className="action-btn bg-blue-600 hover:bg-blue-700" title="Record">
-          <Mic className="w-4 h-4" />
-        </button>
-      );
-    }
-    if (status === 'recording') {
-      return (
-        <button onClick={stopRecording} className="action-btn bg-red-600 hover:bg-red-700 animate-pulse" title="Stop">
-          <Square className="w-4 h-4" />
-        </button>
-      );
-    }
-    return (
-      <div className="flex gap-1">
-        <button onClick={playback} className="action-btn bg-blue-600 hover:bg-blue-700" title="Play">
-          <Play className="w-4 h-4" />
-        </button>
-        <button onClick={reset} className="px-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" title="Record again">
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </div>
-    );
+    return <RecordingControls {...recorder} />;
   };
-
-  // With 4-6 cards, scale the grid down so every card fits one screen
-  // regardless of viewport size.
-  const fitStyle =
-    cols >= 4
-      ? ({
-          // every wrapped row shrinks equally; cards compress, never overflow
-          gridTemplateRows: `repeat(${cols === 4 ? 1 : 2}, minmax(0, 1fr))`,
-        } as React.CSSProperties)
-      : undefined;
 
   const fitWrapperClass = 'w-full h-full min-h-0 flex items-stretch justify-center';
 
@@ -188,7 +174,7 @@ export function MultiFlashcard({
             className={`w-full h-full transition-all duration-200 ease-in ${swipeClass}`}
           >
             <div className={fitWrapperClass}>
-              <div className={fitGridClass} style={fitStyle}>
+              <div className={fitGridClass} style={{ gridAutoRows: 'minmax(0, 1fr)' }}>
                 {slots.map((slot, i) => {
                   const globalIndex = start + i;
                   return (
@@ -213,20 +199,9 @@ export function MultiFlashcard({
           </div>
         </div>
 
-        {settings.showDataPill && (
-          <DataPillWidget
-            correct={0}
-            tries={0}
-            dockedLeft={pillLeft}
-            onToggleSide={() => setPillLeft((p) => !p)}
-            visible={showPill}
-            onToggleVisible={() => setShowPill((v) => !v)}
-          />
-        )}
-
         {/* Bottom bar (not overlay) */}
         <div className="shrink-0 bg-black/60 backdrop-blur px-3 py-3">
-          <div className="max-w-4xl mx-auto flex items-center gap-2 flex-wrap">
+          <div className="mx-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             {/* Left corner: mic (optional) + check/dash when anchored left */}
             <div className="flex items-center gap-2">
               {settings.showRecordButton && recordButton()}
@@ -243,7 +218,7 @@ export function MultiFlashcard({
             </div>
 
             {/* Centered prev / next (plus check/dash when centered) */}
-            <div className="flex items-center gap-2 flex-wrap mx-auto">
+            <div className="min-w-0 flex flex-wrap items-center justify-center gap-2">
               {settings.feedbackButtons === 'center' && (
                 <>
                   <button onClick={onCorrect} className="action-btn bg-green-500 hover:bg-green-600 active:scale-95">
@@ -263,10 +238,11 @@ export function MultiFlashcard({
               <button onClick={goNext} disabled={!canNext} className="action-btn px-6 bg-gray-700 text-white hover:bg-gray-800 active:scale-95 disabled:opacity-40 disabled:hover:bg-gray-700">
                 <ChevronRight className="w-4 h-4" />
               </button>
+              {settings.showDataPill && <DataStats correct={correct} tries={tries} />}
             </div>
 
             {/* Right corner: check/dash when anchored right, then exit */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2 justify-self-end">
               {settings.feedbackButtons === 'right' && (
                 <>
                   <button onClick={onCorrect} className="action-btn bg-green-500 hover:bg-green-600 active:scale-95">
@@ -279,10 +255,10 @@ export function MultiFlashcard({
               )}
               <button
                 onClick={onToggleFullscreen}
-                className="action-btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:scale-95"
+                className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:text-gray-400 active:scale-95"
                 title="Exit fullscreen"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -299,7 +275,7 @@ export function MultiFlashcard({
       <div className="flex flex-col items-center justify-center gap-4 py-8">
         <div className="flex flex-wrap items-center justify-center gap-2">
           {/* Card counter stepper */}
-          <CardCountStepper value={cardCount} min={1} max={6} onChange={onCardCountChange} />
+          <CardCountStepper value={cardCount} min={1} max={10} onChange={onCardCountChange} />
 
           <button
             onClick={onShuffle ?? (() => {})}

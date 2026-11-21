@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Mic,
-  Square,
-  Play,
-  RotateCcw,
   Check,
   Minus,
   ChevronLeft,
@@ -16,10 +12,11 @@ import {
 } from 'lucide-react';
 import { findSubcategory, type SoundCategory } from '@/data/words';
 import { useRecorder } from '@/hooks/useRecorder';
+import { RecordingControls } from '@/components/RecordingControls';
 import { CardCountStepper } from '@/components/CardCountStepper';
 import { DeckPreview } from '@/components/DeckPreview';
 import { GamesIcon } from '@/components/GamesIcon';
-import { DataPillWidget } from '@/components/DataPillWidget';
+import { DataStats } from '@/components/DataStats';
 import type { CardSlot } from '@/components/FlashcardView';
 import {
   r2ImagePaths,
@@ -39,6 +36,8 @@ type Props = {
   groupId: string | null;
   index: number;
   total: number;
+  correct: number;
+  tries: number;
   seenSet: Set<number>;
   fullscreen: boolean;
   cardCount: number;
@@ -65,6 +64,7 @@ type Props = {
 };
 
 const SWIPE_MS = 180;
+const SWIPE_THRESHOLD = 80;
 
 export function Flashcard({
   word,
@@ -73,6 +73,8 @@ export function Flashcard({
   groupId,
   index,
   total,
+  correct,
+  tries,
   seenSet,
   fullscreen,
   cardCount,
@@ -94,7 +96,8 @@ export function Flashcard({
   onShowSettings,
   onConfirmSelection,
 }: Props) {
-  const { status, error, record, stopRecording, playback, reset } = useRecorder();
+  const recorder = useRecorder();
+  const { error } = recorder;
 
   const sub = useMemo(() => findSubcategory(category, subId), [category, subId]);
   const plan = useMemo(() => r2ImagePaths(word, category, sub, groupId ?? null), [word, category, sub, groupId]);
@@ -105,8 +108,6 @@ export function Flashcard({
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [swipe, setSwipe] = useState<'left' | 'right' | null>(null);
   const [enterFrom, setEnterFrom] = useState<'left' | 'right' | null>(null);
-  const [pillLeft, setPillLeft] = useState(false);
-  const [showPill, setShowPill] = useState(true);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
@@ -171,44 +172,32 @@ export function Flashcard({
     }, SWIPE_MS);
   };
 
-  const touchStartX = useRef<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+    if (e.target instanceof Element && e.target.closest('button')) {
+      touchStart.current = null;
+      return;
+    }
+    const touch = e.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 50) return;
-    if (dx < 0) goNext();
-    else goPrev();
+    const start = touchStart.current;
+    if (!start) return;
+    touchStart.current = null;
+    const touch = e.changedTouches[0];
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+    if (dx < 0) {
+      goNext();
+    } else {
+      goPrev();
+    }
   };
 
   const recordButton = () => {
-    if (status === 'idle') {
-      return (
-        <button onClick={record} className="action-btn bg-blue-600 hover:bg-blue-700" title="Record">
-          <Mic className="w-4 h-4" />
-        </button>
-      );
-    }
-    if (status === 'recording') {
-      return (
-        <button onClick={stopRecording} className="action-btn bg-red-600 hover:bg-red-700 animate-pulse" title="Stop">
-          <Square className="w-4 h-4" />
-        </button>
-      );
-    }
-    return (
-      <div className="flex gap-1">
-        <button onClick={playback} className="action-btn bg-blue-600 hover:bg-blue-700" title="Play">
-          <Play className="w-4 h-4" />
-        </button>
-        <button onClick={reset} className="px-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" title="Record again">
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </div>
-    );
+    return <RecordingControls {...recorder} />;
   };
 
   const isScene = category.kind === 'scene';
@@ -275,8 +264,8 @@ export function Flashcard({
 
   if (fullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <div className="flex-1 min-h-0 flex items-center justify-center p-1 sm:p-2 overflow-hidden">
+      <div className="fixed inset-0 z-50 bg-gray-900 flex flex-col">
+        <div className="flex-1 min-h-0 flex items-center justify-center p-1 sm:p-2 overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
           <div
             key={`${index}-${enterFrom ?? 'static'}`}
             className={`w-full h-full transition-all duration-200 ease-in ${
@@ -295,20 +284,9 @@ export function Flashcard({
           </div>
         </div>
 
-        {settings.showDataPill && (
-          <DataPillWidget
-            correct={0}
-            tries={0}
-            dockedLeft={pillLeft}
-            onToggleSide={() => setPillLeft((p) => !p)}
-            visible={showPill}
-            onToggleVisible={() => setShowPill((v) => !v)}
-          />
-        )}
-
         {/* Bottom bar (not overlay) */}
         <div className="shrink-0 bg-black/60 backdrop-blur px-3 py-3">
-          <div className="max-w-4xl mx-auto flex items-center gap-2 flex-wrap">
+          <div className="mx-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             {/* Left corner: mic (optional) + check/dash when anchored left */}
             <div className="flex items-center gap-2">
               {settings.showRecordButton && recordButton()}
@@ -316,7 +294,7 @@ export function Flashcard({
             </div>
 
             {/* Centered prev / next (plus check/dash when centered) */}
-            <div className="flex items-center gap-2 flex-wrap mx-auto">
+            <div className="min-w-0 flex flex-wrap items-center justify-center gap-2">
               {settings.feedbackButtons === 'center' && feedbackButtons}
               <button onClick={goPrev} className="action-btn px-8 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:scale-95">
                 <ChevronLeft className="w-4 h-4" />
@@ -327,17 +305,18 @@ export function Flashcard({
               <button onClick={goNext} className="action-btn px-8 bg-gray-700 text-white hover:bg-gray-800 active:scale-95">
                 <ChevronRight className="w-4 h-4" />
               </button>
+              {settings.showDataPill && <DataStats correct={correct} tries={tries} />}
             </div>
 
             {/* Right corner: check/dash when anchored right, then exit */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2 justify-self-end">
               {settings.feedbackButtons === 'right' && feedbackButtons}
               <button
                 onClick={onToggleFullscreen}
-                className="action-btn bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 active:scale-95"
+                className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:text-gray-400 active:scale-95"
                 title="Exit fullscreen"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -354,7 +333,7 @@ export function Flashcard({
       <div className="flex flex-col items-center justify-center gap-4 py-8">
         <div className="flex flex-wrap items-center justify-center gap-2">
           {/* Card counter stepper */}
-          <CardCountStepper value={cardCount} min={1} max={4} onChange={onCardCountChange} />
+          <CardCountStepper value={cardCount} min={1} max={10} onChange={onCardCountChange} />
 
           {onShuffle && (
             <>

@@ -195,6 +195,7 @@ export function ConnectFourGame({ mode, onClose }: Props) {
     setOverlayIndex(null);
     setCorrectCount(0);
     setTryCount(0);
+    setStep(2);
   }, []);
 
   // Overlay evaluation: records the score and dismisses the card (drops the token)
