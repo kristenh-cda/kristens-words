@@ -698,12 +698,7 @@ export default function App() {
               draggable={false}
             />
             <h1 className="font-title text-[30px] text-gray-600 leading-tight tracking-tight">
-              {(mode === 'language' ? ['Ready', 'Play', 'Language'] : ['Ready', 'Play', 'Speech']).map((part, i) => (
-                <span key={part}>
-                  {i > 0 && <span className="font-hyphen">-</span>}
-                  {part}
-                </span>
-              ))}
+              Kristen's Words
             </h1>
           </div>
           <div className="flex items-center gap-4">
