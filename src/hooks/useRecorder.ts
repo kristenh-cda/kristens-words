@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type RecorderStatus = 'idle' | 'recording' | 'recorded';
+export type RecorderStatus = 'idle' | 'recording' | 'recorded';
 
-type RecorderHook = {
+export type RecorderHook = {
   status: RecorderStatus;
   error: string | null;
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  waveform: number[];
+  waveformLoading: boolean;
+  waveformError: string | null;
   record: () => Promise<void>;
   stopRecording: () => Promise<void>;
   playback: () => void;
+  togglePlayback: () => void;
+  seekAndPlay: (time: number) => void;
   reset: () => void;
 };
 
@@ -80,9 +88,18 @@ function encodeWav(chunks: Float32Array[], sampleRate: number): Blob {
 export function useRecorder(): RecorderHook {
   const [status, setStatus] = useState<RecorderStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [waveform, setWaveform] = useState<number[]>([]);
+  const [waveformLoading, setWaveformLoading] = useState(false);
+  const [waveformError, setWaveformError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const waveformRequestRef = useRef(0);
+  const recordingStartRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   // AudioContext fallback state
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -91,39 +108,129 @@ export function useRecorder(): RecorderHook {
   const pcmChunksRef = useRef<Float32Array[]>([]);
   const usingFallbackRef = useRef(false);
 
-  const setAudioSource = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
+  const ensureAudioElement = useCallback(() => {
+    if (audioElRef.current) return audioElRef.current;
+    const audio = new Audio();
+    audio.onplay = () => setIsPlaying(true);
+    audio.onpause = () => setIsPlaying(false);
+    audio.ontimeupdate = () => setCurrentTime(audio.currentTime);
+    audio.onloadedmetadata = () => {
+      if (Number.isFinite(audio.duration)) setDuration(audio.duration);
+    };
+    audio.onended = () => {
+      setIsPlaying(false);
+      setCurrentTime(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+    audioElRef.current = audio;
+    return audio;
+  }, []);
+
+  const clearAudio = useCallback(() => {
+    waveformRequestRef.current += 1;
     if (audioElRef.current) {
-      audioElRef.current.src = url;
-    } else {
-      audioElRef.current = new Audio(url);
+      audioElRef.current.pause();
+      audioElRef.current.removeAttribute('src');
+      audioElRef.current.load();
     }
-  };
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setWaveform([]);
+    setWaveformLoading(false);
+    setWaveformError(null);
+  }, []);
+
+  const generateWaveform = useCallback(async (blob: Blob) => {
+    const requestId = ++waveformRequestRef.current;
+    setWaveformLoading(true);
+    let context: AudioContext | null = null;
+    try {
+      const Ctx: typeof AudioContext | undefined =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) throw new Error('Audio waveform decoding is not supported in this browser.');
+
+      context = new Ctx();
+      const audioBuffer = await context.decodeAudioData(await blob.arrayBuffer());
+      const samples = audioBuffer.getChannelData(0);
+      const barCount = 80;
+      const samplesPerBar = Math.max(1, Math.ceil(samples.length / barCount));
+      const peaks: number[] = [];
+      for (let start = 0; start < samples.length; start += samplesPerBar) {
+        let peak = 0;
+        const end = Math.min(start + samplesPerBar, samples.length);
+        for (let i = start; i < end; i++) peak = Math.max(peak, Math.abs(samples[i]));
+        peaks.push(peak);
+      }
+      const maxPeak = Math.max(...peaks, 0);
+      const normalized = peaks.map((peak) => (maxPeak > 0 ? Math.max(0.08, peak / maxPeak) : 0));
+      if (requestId === waveformRequestRef.current) {
+        setWaveform(normalized);
+        setDuration(audioBuffer.duration);
+        setWaveformError(null);
+        setWaveformLoading(false);
+      }
+    } catch (err) {
+      if (requestId === waveformRequestRef.current) {
+        setWaveformError('The recording could not be displayed as a waveform in this browser.');
+        setWaveformLoading(false);
+      }
+      console.error('Could not decode the recording waveform.', err);
+    } finally {
+      if (context && context.state !== 'closed') {
+        void context.close().catch((err) => console.error('Could not close the waveform audio context.', err));
+      }
+    }
+  }, []);
+
+  const setAudioSource = useCallback((blob: Blob) => {
+    clearAudio();
+    const url = URL.createObjectURL(blob);
+    audioUrlRef.current = url;
+    const audio = ensureAudioElement();
+    audio.src = url;
+    audio.load();
+    void generateWaveform(blob);
+  }, [clearAudio, ensureAudioElement, generateWaveform]);
+
+  const finishRecording = useCallback((blob: Blob) => {
+    if (blob.size === 0) {
+      setStatus('idle');
+      setError('No audio was recorded. Please try again.');
+      return;
+    }
+    setAudioSource(blob);
+    setStatus('recorded');
+  }, [setAudioSource]);
 
   const reset = useCallback(() => {
     setStatus('idle');
     setError(null);
     chunksRef.current = [];
     pcmChunksRef.current = [];
-    if (audioElRef.current) {
-      audioElRef.current.pause();
-      audioElRef.current.src = '';
-    }
-  }, []);
+    clearAudio();
+  }, [clearAudio]);
 
   const stopRecording = useCallback(async () => {
     const mr = mediaRecorderRef.current;
     if (mr && mr.state !== 'inactive') {
       await new Promise<void>((resolve) => {
-        mr.onstop = () => resolve();
+        const handleStop = () => resolve();
+        mr.addEventListener('stop', handleStop, { once: true });
         try {
           mr.stop();
-        } catch {
+        } catch (err) {
+          mr.removeEventListener('stop', handleStop);
+          setError('Could not stop the recording. Please try again.');
           resolve();
         }
       });
     }
-    mediaRecorderRef.current = null;
+    if (mediaRecorderRef.current === mr) mediaRecorderRef.current = null;
 
     if (usingFallbackRef.current) {
       const processor = processorRef.current;
@@ -139,23 +246,32 @@ export function useRecorder(): RecorderHook {
       audioCtxRef.current = null;
       usingFallbackRef.current = false;
       const sampleRate = ctx?.sampleRate ?? 44100;
-      const blob = encodeWav(pcmChunksRef.current, sampleRate);
+      const hasAudio = pcmChunksRef.current.some((chunk) => chunk.length > 0);
+      const blob = hasAudio ? encodeWav(pcmChunksRef.current, sampleRate) : new Blob();
       pcmChunksRef.current = [];
-      setAudioSource(blob);
-      setStatus('recorded');
+      finishRecording(blob);
+      if (ctx) void ctx.close().catch((err) => console.error('Could not close the recording audio context.', err));
     }
 
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
-  }, []);
+  }, [finishRecording]);
 
   const record = useCallback(async () => {
+    if (
+      recordingStartRef.current ||
+      usingFallbackRef.current ||
+      mediaRecorderRef.current?.state === 'recording'
+    ) return;
+    recordingStartRef.current = true;
+    clearAudio();
+    setStatus('idle');
     setError(null);
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Recording is not supported in this browser. Please try Safari or Chrome.');
-      return;
-    }
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setError('Recording is not supported in this browser. Please try Safari or Chrome.');
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       chunksRef.current = [];
@@ -169,10 +285,12 @@ export function useRecorder(): RecorderHook {
           mr.ondataavailable = (e) => {
             if (e.data.size > 0) chunksRef.current.push(e.data);
           };
-          mr.onstop = () => {
-            setAudioSource(new Blob(chunksRef.current, { type: mr.mimeType || mimeType || 'audio/webm' }));
-            setStatus('recorded');
-          };
+          mr.addEventListener('stop', () => {
+            const blob = new Blob(chunksRef.current, { type: mr.mimeType || mimeType || 'audio/webm' });
+            chunksRef.current = [];
+            if (mediaRecorderRef.current === mr) mediaRecorderRef.current = null;
+            finishRecording(blob);
+          }, { once: true });
           mr.onerror = () => setError('Something went wrong while recording. Please try again.');
           mr.start();
           mediaRecorderRef.current = mr;
@@ -215,25 +333,82 @@ export function useRecorder(): RecorderHook {
       setStatus('idle');
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+    } finally {
+      recordingStartRef.current = false;
     }
-  }, []);
+  }, [clearAudio, finishRecording]);
 
   const playback = useCallback(() => {
-    const el = audioElRef.current;
-    if (el) {
-      el.currentTime = 0;
-      void el.play();
+    const audio = audioElRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    void audio.play().catch((err) => {
+      setError('Could not play the recording. Please try again.');
+      console.error('Could not play the recording.', err);
+    });
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+    if (!audio.paused) {
+      audio.pause();
+      return;
+    }
+    if (audio.ended || (Number.isFinite(audio.duration) && audio.currentTime >= audio.duration)) {
+      audio.currentTime = 0;
+    }
+    void audio.play().catch((err) => {
+      setError('Could not play the recording. Please try again.');
+      console.error('Could not play the recording.', err);
+    });
+  }, []);
+
+  const seekAndPlay = useCallback((time: number) => {
+    const audio = audioElRef.current;
+    if (!audio) return;
+    const maxTime = Number.isFinite(audio.duration) ? audio.duration : Math.max(0, time);
+    audio.currentTime = Math.max(0, Math.min(time, maxTime));
+    if (audio.paused) {
+      void audio.play().catch((err) => {
+        setError('Could not play the recording. Please try again.');
+        console.error('Could not play the recording.', err);
+      });
     }
   }, []);
 
   useEffect(() => {
     return () => {
+      waveformRequestRef.current += 1;
       streamRef.current?.getTracks().forEach((t) => t.stop());
-      if (audioElRef.current) audioElRef.current.pause();
+      if (audioElRef.current) {
+        audioElRef.current.pause();
+        audioElRef.current.onplay = null;
+        audioElRef.current.onpause = null;
+        audioElRef.current.ontimeupdate = null;
+        audioElRef.current.onloadedmetadata = null;
+        audioElRef.current.onended = null;
+      }
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       const ctx = audioCtxRef.current;
       if (ctx) void ctx.close().catch(() => {});
     };
   }, []);
 
-  return { status, error, record, stopRecording, playback, reset };
+  return {
+    status,
+    error,
+    isPlaying,
+    currentTime,
+    duration,
+    waveform,
+    waveformLoading,
+    waveformError,
+    record,
+    stopRecording,
+    playback,
+    togglePlayback,
+    seekAndPlay,
+    reset,
+  };
 }

@@ -179,16 +179,11 @@ export default function App() {
   // or exhausted attempt states are attached here; the image path is resolved
   // dynamically in the render component via r2ImagePaths so a card always
   // renders fresh from the primary R2 path, even on a second/third pass.
-  // Swaps deep-copy the array, splice the card out of its slot, and push it to
-  // the very end; the array length never changes, so slot indexing stays
-  // stable and the next card naturally shifts into the emptied slot.
+  // Swaps promote a later, non-visible card into the selected slot and move
+  // the displaced card to the end of the current traversal order.
   type DeckCard = CardSlot & { id: string };
   const instCounter = useRef(0);
   const [deck, setDeck] = useState<DeckCard[]>([]);
-  // Swap queue: cards from the target pool not currently visible. Each swap
-  // pulls from the front and pushes the swapped-out card to the back, cycling
-  // through ALL targets before repeating. Reset on category/sub/group change.
-  const swapQueueRef = useRef<DeckCard[]>([]);
 
   // Rebuild the deck whenever the underlying word list changes.
   useEffect(() => {
@@ -203,9 +198,6 @@ export default function App() {
       };
     });
     setDeck(newDeck);
-    // Reset the swap queue: empty until a swap is requested, then populated
-    // lazily from the full target pool minus the current deck.
-    swapQueueRef.current = [];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [words, mixedDeck, multiDeck, localShuffle]);
 
@@ -310,18 +302,40 @@ export default function App() {
     if (!s) return;
     setMultiSelected((prev) => {
       const next = new Set(prev);
-      if (!s.words && s.groups) {
-        // Selecting a subcategory also selects all of its sub-sounds;
-        // deselecting removes the subcategory and every sub-sound.
-        const keys = [s.id, ...s.groups.map((g) => `${s.id}::${g.id}`)];
-        const allSelected = keys.every((k) => next.has(k));
-        keys.forEach((k) => (allSelected ? next.delete(k) : next.add(k)));
-      } else {
-        if (next.has(s.id)) next.delete(s.id);
-        else next.add(s.id);
-      }
+      const keys = s.words ? [s.id] : (s.groups ?? []).map((g) => `${s.id}::${g.id}`);
+      const allSelected = keys.length > 0 && keys.every((k) => next.has(k));
+      keys.forEach((k) => (allSelected ? next.delete(k) : next.add(k)));
       return next;
     });
+  };
+
+  const handleMultiToggleCategory = (id: string) => {
+    const selectedCategory = categoryListFor(mode).find((c) => c.id === id);
+    if (!selectedCategory) return;
+    const keys = selectedCategory.subcategories.flatMap((s) =>
+      s.words ? [s.id] : (s.groups ?? []).map((g) => `${s.id}::${g.id}`),
+    );
+    if (keys.length === 0) return;
+
+    setMultiSelected((prev) => {
+      const next = new Set(prev);
+      const allSelected = keys.every((key) => next.has(key));
+      keys.forEach((key) => (allSelected ? next.delete(key) : next.add(key)));
+      return next;
+    });
+
+    const firstSub = selectedCategory.subcategories[0];
+    setMixedDeck(null);
+    setMultiDeck(null);
+    setLocalShuffle(null);
+    setShuffled(false);
+    setCategoryId(id);
+    setSubId(firstSub?.id ?? null);
+    setGroupId(preferredGroupId(firstSub));
+    setCardIndex(0);
+    setCorrect(0);
+    setTries(0);
+    setSeenSet(new Set());
   };
 
   const handleMultiToggleGroup = (sid: string, gid: string) => {
@@ -353,6 +367,9 @@ export default function App() {
 
   const swapMode = () => {
     setMode((m) => (m === 'language' ? 'speech' : 'language'));
+    setMultiMode(false);
+    setMultiSelected(new Set());
+    setMultiDeck(null);
     setMixedDeck(null);
     setLocalShuffle(null); setShuffled(false);
     setCategoryId(null);
@@ -398,77 +415,54 @@ export default function App() {
   };
   const prev = () => {
     if (cardCount > 1) {
+      if (total <= 0) return;
       const prevStart = safeIndex - pageCount;
-      if (prevStart < 0) setLoopCount((c) => c - 1);
-      setCardIndex(prevStart < 0 ? 0 : prevStart);
+      if (prevStart < 0) {
+        setLoopCount((c) => c - 1);
+        setCardIndex(Math.floor((total - 1) / pageCount) * pageCount);
+      } else {
+        setCardIndex(prevStart);
+      }
       return;
     }
     if (safeIndex <= 0) setLoopCount((c) => c - 1);
     setCardIndex((i) => (i - 1 + total) % total);
   };
 
-  // Build the full target pool for the current selection (all words in the
-  // active subcategory/group, not just the ones in the deck). Used to seed the
-  // swap queue on the first swap.
-  const buildSwapPool = (): DeckCard[] => {
-    if (activeDeck) {
-      // In mixed/multi mode, the pool is the entire deck's word list.
-      return words.map((w, i) => {
-        const ctx = resolveContext(i);
-        return {
-          id: `pool-${i}-${Date.now()}`,
-          word: w,
-          category: ctx.sc,
-          subId: ctx.sid,
-          groupId: ctx.gid,
-        };
-      });
-    }
-    // Single-category mode: pool is all words in the selected sub/group.
-    const poolWords = getWordList(sub, groupId);
-    return poolWords.map((w) => {
-      const ctx = resolveContext(0);
-      return {
-        id: `pool-${w}-${Date.now()}`,
-        word: w,
-        category: ctx.sc,
-        subId: ctx.sid,
-        groupId: ctx.gid,
-      };
-    });
-  };
-
-  // Queue-based swap: pull the next unused card from the front of the queue,
-  // replace slot i in place, and push the swapped-out card to the back.
+  // Promote the first card after the visible page into the selected slot,
+  // then place the displaced card last in this traversal's order.
   const handleSwapCard = (pageOffset: number) => {
-    if (total < 2 || deck.length < 2) return;
+    if (deck.length !== total || total <= pageCount) return;
     if (pageOffset < 0 || pageOffset >= pageCount) return;
-    const i = (safeIndex + pageOffset) % total;
-    const newDeck = [...deck];
-    const originalCard = newDeck[i];
-    if (!originalCard) return;
 
-    // Lazily seed the swap queue on first use with all pool cards not in the deck.
-    if (swapQueueRef.current.length === 0) {
-      const pool = buildSwapPool();
-      const deckWords = new Set(deck.map((c) => c.word));
-      swapQueueRef.current = pool.filter((c) => !deckWords.has(c.word));
-      // If the pool is smaller than or equal to the deck, replenish with the
-      // full pool so swapping always has something to show.
-      if (swapQueueRef.current.length === 0) {
-        swapQueueRef.current = pool.filter((c) => c.word !== originalCard.word);
-      }
-    }
+    const traversal = Array.from(
+      { length: total },
+      (_, offset) => deck[(safeIndex + offset) % total],
+    );
+    const displacedCard = traversal[pageOffset];
+    const replacementCard = traversal[pageCount];
+    if (!displacedCard || !replacementCard) return;
 
-    // Take the next card from the front of the queue.
-    const nextCard = swapQueueRef.current.shift();
-    if (!nextCard) return;
+    const nextTraversal = [...traversal];
+    nextTraversal[pageOffset] = replacementCard;
+    nextTraversal.splice(pageCount, 1);
+    nextTraversal.push(displacedCard);
 
-    // Replace slot i in place — no index shifting.
-    newDeck[i] = { ...nextCard, id: `${nextCard.word}-${Date.now()}` };
-    // Push the original card to the back of the queue so it cycles back.
-    swapQueueRef.current.push(originalCard);
-    setDeck(newDeck);
+    const nextDeck = [...deck];
+    nextTraversal.forEach((card, offset) => {
+      nextDeck[(safeIndex + offset) % total] = card;
+    });
+    setSeenSet((previousSeen) => {
+      const seenCardIds = new Set(
+        [...previousSeen]
+          .map((index) => deck[index]?.id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      return new Set(
+        nextDeck.flatMap((card, index) => (seenCardIds.has(card.id) ? [index] : [])),
+      );
+    });
+    setDeck(nextDeck);
   };
 
   const resetSession = () => {
@@ -489,7 +483,6 @@ export default function App() {
       groupId: s.groupId,
     }));
     setDeck(newDeck);
-    swapQueueRef.current = [];
     setCardIndex(0);
     setSeenSet(new Set());
     setCorrect(0);
@@ -697,18 +690,24 @@ export default function App() {
               className="w-8 h-8 object-contain"
               draggable={false}
             />
-            <h1 className="font-title text-[30px] text-gray-600 leading-tight tracking-tight">
-              Kristen's Words
+            <h1 className="min-w-0">
+              <img
+                src="/branding/kristens-words-bakula.png"
+                alt="Kristen's Words"
+                className="block h-auto w-[240px] max-w-full"
+                draggable={false}
+              />
             </h1>
           </div>
           <div className="flex items-center gap-4">
             <button
               onClick={swapMode}
-              aria-label="Switch between speech sounds and language"
-              title="Switch between speech sounds and language"
-              className="w-9 h-9 shrink-0 rounded-full bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:text-gray-900 flex items-center justify-center shadow-sm transition-all active:scale-95"
+              aria-label={`Switch to ${mode === 'language' ? 'speech' : 'language'} mode`}
+              title={`Switch to ${mode === 'language' ? 'speech' : 'language'} mode`}
+              className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-600 shadow-sm transition-all hover:bg-gray-50 hover:text-gray-900 active:scale-95"
             >
               <ArrowLeftRight className="w-4 h-4" />
+              <span>{mode === 'language' ? 'Speech' : 'Language'}</span>
             </button>
             <StatsBar correct={correct} tries={tries} onReset={resetSession} />
           </div>
@@ -725,6 +724,7 @@ export default function App() {
           multiMode={multiMode}
           multiSelected={multiSelected}
           onToggleMultiMode={toggleMultiMode}
+          onMultiToggleCategory={handleMultiToggleCategory}
           onMultiToggleSub={handleMultiToggleSub}
           onMultiToggleGroup={handleMultiToggleGroup}
           onCategoryChange={handleCategoryChange}
@@ -775,6 +775,8 @@ export default function App() {
                 pageSize={pageCount}
                 seenSet={seenSet}
                 fullscreen={fullscreen}
+                correct={correct}
+                tries={tries}
                 cardCount={cardCount}
                 onCardCountChange={setCardCount}
                 subLabels={subLabels}
@@ -786,7 +788,7 @@ export default function App() {
                 onTryAgain={() => setTries((t) => t + 1)}
                 onSeen={markSeen}
                 onToggleFullscreen={() => setFullscreen((f) => !f)}
-                onSwapCard={handleSwapCard}
+                onSwapCard={pageCount < total ? handleSwapCard : undefined}
                 settings={settings}
                 onShowSettings={() => setShowSettings(true)}
                 onConfirmSelection={handleConfirmSelection}
@@ -802,6 +804,8 @@ export default function App() {
                 total={total}
                 seenSet={seenSet}
                 fullscreen={fullscreen}
+                correct={correct}
+                tries={tries}
                 cardCount={cardCount}
                 onCardCountChange={setCardCount}
                 subLabels={subLabels}

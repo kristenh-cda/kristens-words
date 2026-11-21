@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, RotateCcw, Mic, Square, Play, Check, Minus, ArrowLeft } from 'lucide-react';
+import { X, RotateCcw, Check, Minus, ArrowLeft } from 'lucide-react';
 import { sceneImageUrl } from '@/lib/images';
 import { useRecorder } from '@/hooks/useRecorder';
+import { RecordingControls } from '@/components/RecordingControls';
 
 type Circle = {
   id: number;
@@ -32,7 +33,7 @@ const CHIP = 72;
  * Reset + Close) so the scene can be used in a therapy session.
  */
 export function SceneViewer({ title, onClose, onBack, onCorrect, onTryAgain }: Props) {
-  const { status, record, stopRecording, playback, reset } = useRecorder();
+  const recorder = useRecorder();
 
   const [circles, setCircles] = useState<Circle[]>(() =>
     Array.from({ length: 40 }, (_, i) => ({ id: i, x: 0, y: 0, placed: false, dragging: false })),
@@ -109,30 +110,7 @@ export function SceneViewer({ title, onClose, onBack, onCorrect, onTryAgain }: P
   };
 
   const recordButton = () => {
-    if (status === 'idle') {
-      return (
-        <button onClick={record} className="action-btn bg-blue-600 hover:bg-blue-700" title="Record">
-          <Mic className="w-4 h-4" />
-        </button>
-      );
-    }
-    if (status === 'recording') {
-      return (
-        <button onClick={stopRecording} className="action-btn bg-red-600 hover:bg-red-700 animate-pulse" title="Stop">
-          <Square className="w-4 h-4" />
-        </button>
-      );
-    }
-    return (
-      <div className="flex gap-1">
-        <button onClick={playback} className="action-btn bg-blue-600 hover:bg-blue-700" title="Play">
-          <Play className="w-4 h-4" />
-        </button>
-        <button onClick={reset} className="px-2.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors" title="Record again">
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </div>
-    );
+    return <RecordingControls {...recorder} />;
   };
 
   const pile = circles.filter((c) => !c.placed && !c.dragging);

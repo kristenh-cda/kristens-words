@@ -149,7 +149,7 @@ export function FlashcardView({ slot, index, total, seen, fullscreen = false, sh
             className={`absolute left-2 w-7 h-7 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center backdrop-blur transition-colors active:scale-95 ${
               showCardCount ? 'top-10' : 'top-2'
             }`}
-            title="Swap this card for the next word in the deck"
+            title="Replace this card with the next card not shown"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>

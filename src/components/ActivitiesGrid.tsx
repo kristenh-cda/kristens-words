@@ -190,32 +190,6 @@ function WhackAMoleIcon() {
   );
 }
 
-function HiddenTreasureIcon() {
-  return (
-    <svg viewBox="0 0 64 64" className="w-[78%] h-[78%]">
-      {/* Ground shadow: floating treasure casts a soft detached shadow */}
-      <ellipse cx="32" cy="57" rx="16" ry="3" fill="#374151" opacity="0.18" />
-      {/* Floating motion puffs */}
-      <path d="M20 52 Q19 48 22 46" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
-      <path d="M44 52 Q45 48 42 46" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.5" />
-      {/* Gold coins with highlights */}
-      <circle cx="18" cy="30" r="7.5" fill="#fbbf24" stroke="#b45309" strokeWidth="2" />
-      <path d="M13.5 27 A6 6 0 0 1 18 24" stroke="#fef3c7" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <circle cx="44" cy="27" r="6.5" fill="#fbbf24" stroke="#b45309" strokeWidth="2" />
-      <path d="M40 24.5 A5.5 5.5 0 0 1 44 22" stroke="#fef3c7" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <circle cx="29" cy="40" r="5.5" fill="#f59e0b" stroke="#b45309" strokeWidth="2" />
-      {/* Center gem with facets and shine */}
-      <path d="M32 8 L41 18 L32 30 L23 18 Z" fill="#38bdf8" stroke="#0369a1" strokeWidth="2" strokeLinejoin="round" />
-      <path d="M23 18 L41 18 M32 8 L28 18 L32 30 M32 8 L36 18 L32 30" stroke="#7dd3fc" strokeWidth="1.2" fill="none" strokeLinejoin="round" />
-      <path d="M28 12 L31 10" stroke="#e0f2fe" strokeWidth="2" strokeLinecap="round" />
-      {/* Sparkles */}
-      <path d="M50 36 L50 42 M47 39 L53 39" stroke="#fde047" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12 42 L12 46 M10 44 L14 44" stroke="#fde047" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="42" cy="42" r="1.5" fill="#fde047" />
-    </svg>
-  );
-}
-
 export function ActivitiesGrid({ onClose, onLaunchSpinner, onLaunchMemory, onLaunchTicTacToe, onLaunchConnectFour, onLaunchDice, onLaunchDots, onLaunchWhackAMole, onLaunchHiddenTreasure }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -233,7 +207,7 @@ export function ActivitiesGrid({ onClose, onLaunchSpinner, onLaunchMemory, onLau
     { name: 'Dice', icon: <DiceIcon />, launch: onLaunchDice },
     { name: 'Dots and Boxes', icon: <DotsAndBoxesIcon />, launch: onLaunchDots },
     { name: 'Whack a Mole', icon: <WhackAMoleIcon />, launch: onLaunchWhackAMole },
-    { name: 'Hidden Treasure', icon: <HiddenTreasureIcon /> },
+    { name: 'Hidden Treasure', icon: <SoonBadge /> },
     { name: 'Feed the Puppy', icon: <SoonBadge /> },
     { name: 'Board Game', icon: <SoonBadge /> },
     { name: 'Battleship', icon: <SoonBadge /> },

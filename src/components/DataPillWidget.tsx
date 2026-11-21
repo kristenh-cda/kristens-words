@@ -17,6 +17,8 @@ type Props = {
   onTryAgain?: () => void;
   /** Rendered above the whole group; moves with it when it docks. */
   topExtra?: ReactNode;
+  /** Render the controls inline inside a reserved sidebar instead of floating. */
+  sidebar?: boolean;
 };
 
 /**
@@ -35,13 +37,14 @@ export function DataPillWidget({
   onCorrect,
   onTryAgain,
   topExtra,
+  sidebar = false,
 }: Props) {
   const Arrow = dockedLeft ? ArrowRight : ArrowLeft;
   return (
     <div
-      className={`absolute bottom-4 z-30 flex flex-col items-center gap-2 transition-all duration-300 ${
-        dockedLeft ? 'left-4' : 'right-4'
-      }`}
+      className={sidebar
+        ? 'flex flex-col items-center gap-2'
+        : `absolute bottom-4 z-30 flex flex-col items-center gap-2 transition-all duration-300 ${dockedLeft ? 'left-4' : 'right-4'}`}
     >
       {visible ? (
         <>

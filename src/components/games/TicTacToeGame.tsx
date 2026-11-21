@@ -526,38 +526,6 @@ export function TicTacToeGame({ mode, onClose }: Props) {
           )}
           </div>
         </div>
-
-        {/* Right panel: result card on top, data tracking at the bottom */}
-        <div className={`hidden md:flex flex-col justify-between gap-3 shrink-0 items-center self-stretch py-2 relative z-10 transition-opacity duration-300 ${focusCell ? 'opacity-40' : ''}`}>
-          {/* Result card, inline to the right so the game stays visible */}
-          {gameComplete && (
-            <div className={`bg-white rounded-xl p-4 text-center w-44 ${HALO}`}>
-              <Trophy className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-              <h3 className="text-base font-black text-gray-900 mb-0.5">
-                {winner ? `Player ${winner} wins!` : "It's a draw!"}
-              </h3>
-              <p className="text-[11px] text-gray-500 mb-3">
-                {winner ? 'Three in a row' : 'All squares filled'}
-              </p>
-              <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={playAgain}
-                  className="px-4 py-2 rounded-lg bg-gray-900 text-white font-semibold text-xs hover:bg-gray-800 transition-colors"
-                >
-                  Play Again
-                </button>
-                <button
-                  onClick={newGame}
-                  className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 font-semibold text-xs hover:bg-gray-200 transition-colors"
-                >
-                  New Game
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Data tracking now lives in the floating pill box at the bottom */}
-        </div>
       </div>
 
       {/* Floating dockable data pill (buttons live on the flashcard) */}
@@ -570,9 +538,32 @@ export function TicTacToeGame({ mode, onClose }: Props) {
         onToggleVisible={() => setShowData((v) => !v)}
       />
 
-      {/* End-of-game dimmer behind panels so the finish is obvious; board stays visible */}
       {gameComplete && (
-        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+          <div className={`max-h-full w-full max-w-xs overflow-y-auto rounded-xl bg-white p-5 text-center ${HALO}`}>
+            <Trophy className="mx-auto mb-2 h-8 w-8 text-amber-500" />
+            <h3 className="mb-1 text-base font-black text-gray-900">
+              {winner ? `Player ${winner} wins!` : "It's a draw!"}
+            </h3>
+            <p className="mb-3 text-xs text-gray-500">
+              {winner ? 'Three in a row' : 'All squares filled'}
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={playAgain}
+                className="min-h-11 w-full rounded-lg bg-gray-900 px-4 py-2 font-semibold text-sm text-white hover:bg-gray-800 transition-colors"
+              >
+                Play Again
+              </button>
+              <button
+                onClick={newGame}
+                className="min-h-11 w-full rounded-lg bg-gray-100 px-4 py-2 font-semibold text-sm text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                New Game
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

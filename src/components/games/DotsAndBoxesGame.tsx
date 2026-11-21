@@ -188,10 +188,10 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
     return card;
   };
 
-  // Claiming the line happens immediately on click; the flashcard is practice on top.
+  // Claim the line after a drag connects two adjacent dots; the flashcard is practice on top.
   // Completing a box earns an extra turn; the turn otherwise passes — but the
   // highlight only updates when the card is dismissed (check / dash / X).
-  const handleLineClick = (key: LineKey) => {
+  const claimLine = (key: LineKey) => {
     if (lines.has(key) || pending) return;
     const current = turn;
 
@@ -267,6 +267,9 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
     scores[0] === scores[1] ? null : scores[0] > scores[1] ? 0 : 1;
 
   const boardRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragStartRef = useRef<{ r: number; c: number; pointerId: number } | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ x: number; y: number } | null>(null);
   const [boardPx, setBoardPx] = useState(420);
 
   useLayoutEffect(() => {
@@ -503,6 +506,77 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
   const CELL = 100;
   const size = boxCount * CELL + PAD * 2;
 
+  const pointAt = (clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return null;
+    return {
+      x: ((clientX - rect.left) / rect.width) * size,
+      y: ((clientY - rect.top) / rect.height) * size,
+      rect,
+    };
+  };
+
+  const dotAt = (clientX: number, clientY: number) => {
+    const point = pointAt(clientX, clientY);
+    if (!point) return null;
+    const c = Math.round((point.x - PAD) / CELL);
+    const r = Math.round((point.y - PAD) / CELL);
+    if (r < 0 || r > boxCount || c < 0 || c > boxCount) return null;
+
+    const dx = (point.x - (PAD + c * CELL)) * (point.rect.width / size);
+    const dy = (point.y - (PAD + r * CELL)) * (point.rect.height / size);
+    return Math.hypot(dx, dy) <= 32 ? { r, c } : null;
+  };
+
+  const handleBoardPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    if ((event.pointerType === 'mouse' && event.button !== 0) || pending || gameOver) return;
+    const dot = dotAt(event.clientX, event.clientY);
+    if (!dot) return;
+
+    event.preventDefault();
+    dragStartRef.current = { ...dot, pointerId: event.pointerId };
+    setDragPreview({ x: PAD + dot.c * CELL, y: PAD + dot.r * CELL });
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleBoardPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (dragStartRef.current?.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    const point = pointAt(event.clientX, event.clientY);
+    if (point) {
+      setDragPreview({
+        x: Math.max(0, Math.min(size, point.x)),
+        y: Math.max(0, Math.min(size, point.y)),
+      });
+    }
+  };
+
+  const handleBoardPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    const start = dragStartRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    dragStartRef.current = null;
+    setDragPreview(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const end = dotAt(event.clientX, event.clientY);
+    if (!end) return;
+    const dr = end.r - start.r;
+    const dc = end.c - start.c;
+    if (Math.abs(dr) + Math.abs(dc) !== 1) return;
+
+    const key = dr === 0
+      ? drawKey('h', start.r, Math.min(start.c, end.c))
+      : drawKey('v', Math.min(start.r, end.r), start.c);
+    claimLine(key);
+  };
+
+  const cancelBoardPointer = () => {
+    dragStartRef.current = null;
+    setDragPreview(null);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-b from-sky-50 to-indigo-100 flex">
       {/* Left sidebar: player scorecards */}
@@ -548,7 +622,17 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
       {/* Board fills the remaining middle space */}
       <div ref={boardRef} className="flex-1 min-w-0 flex justify-center items-center px-3 py-3">
         <div className="relative" style={{ width: boardPx, height: boardPx }}>
-          <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full block" role="img" aria-label="Dots and boxes board">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${size} ${size}`}
+            className="w-full h-full block touch-none select-none"
+            role="img"
+            aria-label="Dots and boxes board. Drag from one dot to an adjacent dot to draw a line."
+            onPointerDown={handleBoardPointerDown}
+            onPointerMove={handleBoardPointerMove}
+            onPointerUp={handleBoardPointerUp}
+            onPointerCancel={cancelBoardPointer}
+          >
             {/* Filled boxes */}
             {[...boxes.entries()].map(([key, owner]) => {
               const [rStr, cStr] = key.split('-');
@@ -589,6 +673,22 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
               );
             })}
 
+            {/* Animated guide line follows the active drag until the player releases. */}
+            {dragStartRef.current && dragPreview && (
+              <line
+                x1={PAD + dragStartRef.current.c * CELL}
+                y1={PAD + dragStartRef.current.r * CELL}
+                x2={dragPreview.x}
+                y2={dragPreview.y}
+                stroke={playerColor(turn)}
+                strokeWidth={9}
+                strokeLinecap="round"
+                strokeDasharray="12 8"
+                className="animate-pulse"
+                pointerEvents="none"
+              />
+            )}
+
             {/* Dots */}
             {Array.from({ length: boxCount + 1 }, (_, r) =>
               Array.from({ length: boxCount + 1 }, (_, c) => (
@@ -600,48 +700,6 @@ export function DotsAndBoxesGame({ mode, onClose }: Props) {
                   fill="#374151"
                 />
               )),
-            )}
-
-            {/* Clickable / hoverable line hit areas */}
-            {Array.from({ length: boxCount + 1 }, (_, r) =>
-              Array.from({ length: boxCount }, (_, c) => {
-                const key = drawKey('h', r, c);
-                const taken = lines.has(key);
-                return (
-                  <line
-                    key={`hit-${key}`}
-                    x1={PAD + c * CELL + 6}
-                    y1={PAD + r * CELL}
-                    x2={PAD + (c + 1) * CELL - 6}
-                    y2={PAD + r * CELL}
-                    stroke="transparent"
-                    strokeWidth={26}
-                    strokeLinecap="round"
-                    className={taken || pending ? '' : 'cursor-pointer hover:stroke-gray-400/60'}
-                    onClick={() => handleLineClick(key)}
-                  />
-                );
-              }),
-            )}
-            {Array.from({ length: boxCount }, (_, r) =>
-              Array.from({ length: boxCount + 1 }, (_, c) => {
-                const key = drawKey('v', r, c);
-                const taken = lines.has(key);
-                return (
-                  <line
-                    key={`hit-${key}`}
-                    x1={PAD + c * CELL}
-                    y1={PAD + r * CELL + 6}
-                    x2={PAD + c * CELL}
-                    y2={PAD + (r + 1) * CELL - 6}
-                    stroke="transparent"
-                    strokeWidth={26}
-                    strokeLinecap="round"
-                    className={taken || pending ? '' : 'cursor-pointer hover:stroke-gray-400/60'}
-                    onClick={() => handleLineClick(key)}
-                  />
-                );
-              }),
             )}
           </svg>
       {/* Compact practice card anchored directly over the line just drawn */}
