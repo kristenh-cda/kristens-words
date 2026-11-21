@@ -34,6 +34,12 @@ type Props = {
 type Step = 1 | 2;
 
 const DIE = { label: 'd6', sides: 6, color: '#38bdf8' };
+const MAX_DIE_SIZE = 900;
+
+function getDieSize() {
+  const availableHeight = Math.max(120, (window.innerHeight - 150) * 0.9);
+  return Math.floor(Math.max(120, Math.min(window.innerWidth * 0.92, availableHeight, MAX_DIE_SIZE)));
+}
 
 const CARD_COUNTS = [0, 1, 2, 3, 4, 5, 6];
 
@@ -160,6 +166,14 @@ function Die3D({ die, rolling, rolled, size = 150 }: DieProps) {
 }
 
 export function DiceGame({ mode, onClose }: Props) {
+  const [dieSize, setDieSize] = useState(getDieSize);
+
+  useEffect(() => {
+    const handleResize = () => setDieSize(getDieSize());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Wizard state
   const [step, setStep] = useState<Step>(1);
   const [selectedSourceKeys, setSelectedSourceKeys] = useState<Set<string>>(new Set());
@@ -560,10 +574,10 @@ export function DiceGame({ mode, onClose }: Props) {
       <button
         onClick={roll}
         disabled={rolling || phase === 'single-card' || phase === 'multi-cards'}
-        className="flex-1 min-h-0 flex flex-col items-center justify-center gap-8 cursor-pointer disabled:cursor-default select-none"
+        className="flex-1 min-h-0 flex flex-col items-center justify-center gap-4 cursor-pointer disabled:cursor-default select-none"
         title="Click the die to roll"
       >
-        <Die3D die={DIE} rolling={rolling} rolled={rolled} size={160} />
+        <Die3D die={DIE} rolling={rolling} rolled={rolled} size={dieSize} />
 
         {phase === 'reveal' && rolled !== null && (
           <div className="flex flex-col items-center gap-1">

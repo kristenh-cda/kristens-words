@@ -82,7 +82,9 @@ export function FilterBar({
     return keys.length > 0 && keys.every((k) => multiSelected.has(k));
   };
   const isCategorySelected = (c: SoundCategory) => {
-    const keys = c.subcategories.flatMap(subSourceKeys);
+    const keys = c.subcategories
+      .filter((s) => !(c.id === 's' && s.id === 's-ts'))
+      .flatMap(subSourceKeys);
     return keys.length > 0 && keys.every((k) => multiSelected.has(k));
   };
 
@@ -150,7 +152,7 @@ export function FilterBar({
           subcategoryRow && mode !== 'language' ? 'pl-3 border-l-2 border-gray-300' : ''
         }`}
       >
-        {sortGroupsForDisplay(sub.groups, sub.id).map((g) => {
+        {(sortGroupsForDisplay(sub.groups, sub.id) ?? sub.groups).map((g) => {
           const key = `${sub.id}::${g.id}`;
           const active = multiMode ? multiSelected.has(key) : g.id === groupId;
           return (

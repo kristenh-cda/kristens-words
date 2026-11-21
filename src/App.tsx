@@ -120,6 +120,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [multiMode, setMultiMode] = useState(false);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const [limitedMultiGroups, setLimitedMultiGroups] = useState<Set<string>>(new Set());
   const [multiDeck, setMultiDeck] = useState<MixedDeck | null>(null);
 
   const updateSettings = (patch: Partial<FlashcardSettings>) => {
@@ -300,11 +301,20 @@ export default function App() {
   const handleMultiToggleSub = (id: string) => {
     const s = cat ? findSubcategory(cat, id) : undefined;
     if (!s) return;
+    const keys = s.words ? [s.id] : (s.groups ?? []).map((g) => `${s.id}::${g.id}`);
+    const limitGroups = ['r-blends', 'l-blends', 's-blends'].includes(s.id)
+      ? keys.filter((key) => key.includes('::'))
+      : [];
     setMultiSelected((prev) => {
       const next = new Set(prev);
-      const keys = s.words ? [s.id] : (s.groups ?? []).map((g) => `${s.id}::${g.id}`);
       const allSelected = keys.length > 0 && keys.every((k) => next.has(k));
       keys.forEach((k) => (allSelected ? next.delete(k) : next.add(k)));
+      return next;
+    });
+    setLimitedMultiGroups((prev) => {
+      const next = new Set(prev);
+      const allSelected = keys.length > 0 && keys.every((key) => multiSelected.has(key));
+      limitGroups.forEach((key) => (allSelected ? next.delete(key) : next.add(key)));
       return next;
     });
   };
@@ -312,15 +322,27 @@ export default function App() {
   const handleMultiToggleCategory = (id: string) => {
     const selectedCategory = categoryListFor(mode).find((c) => c.id === id);
     if (!selectedCategory) return;
-    const keys = selectedCategory.subcategories.flatMap((s) =>
+    const selectedSubcategories = selectedCategory.subcategories.filter(
+      (s) => !(id === 's' && s.id === 's-ts'),
+    );
+    const keys = selectedSubcategories.flatMap((s) =>
       s.words ? [s.id] : (s.groups ?? []).map((g) => `${s.id}::${g.id}`),
     );
     if (keys.length === 0) return;
+    const limitGroups = selectedSubcategories
+      .filter((s) => ['r-blends', 'l-blends', 's-blends'].includes(s.id))
+      .flatMap((s) => (s.groups ?? []).map((g) => `${s.id}::${g.id}`));
 
     setMultiSelected((prev) => {
       const next = new Set(prev);
       const allSelected = keys.every((key) => next.has(key));
       keys.forEach((key) => (allSelected ? next.delete(key) : next.add(key)));
+      return next;
+    });
+    setLimitedMultiGroups((prev) => {
+      const next = new Set(prev);
+      const allSelected = keys.every((key) => multiSelected.has(key));
+      limitGroups.forEach((key) => (allSelected ? next.delete(key) : next.add(key)));
       return next;
     });
 
@@ -346,6 +368,12 @@ export default function App() {
       else next.add(key);
       return next;
     });
+    setLimitedMultiGroups((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
   };
 
   const handleStartMixed = (shuffledWords: string[], sources: SelectableSource[]) => {
@@ -369,6 +397,7 @@ export default function App() {
     setMode((m) => (m === 'language' ? 'speech' : 'language'));
     setMultiMode(false);
     setMultiSelected(new Set());
+    setLimitedMultiGroups(new Set());
     setMultiDeck(null);
     setMixedDeck(null);
     setLocalShuffle(null); setShuffled(false);
@@ -527,7 +556,7 @@ export default function App() {
               subLabel: s.label,
               groupId: g.id,
               groupLabel: g.label,
-              words: g.words,
+              words: limitedMultiGroups.has(`${s.id}::${g.id}`) ? g.words.slice(0, 3) : g.words,
               accent: c.accent,
               accentSoft: c.accentSoft,
             });
@@ -544,7 +573,7 @@ export default function App() {
             subLabel: s.label,
             groupId: g.id,
             groupLabel: g.label,
-            words: g.words,
+            words: limitedMultiGroups.has(`${s.id}::${g.id}`) ? g.words.slice(0, 3) : g.words,
             accent: c.accent,
             accentSoft: c.accentSoft,
           });
@@ -598,13 +627,14 @@ export default function App() {
     setSeenSet(new Set());
     setLocalShuffle(null); setShuffled(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [multiSelected, multiMode, mode]);
+  }, [multiSelected, multiMode, mode, limitedMultiGroups]);
 
   const toggleMultiMode = () => {
     setMultiMode((m) => {
       if (m) {
         // Leaving multi-select clears its selections and any deck it built.
         setMultiSelected(new Set());
+        setLimitedMultiGroups(new Set());
         setMultiDeck(null);
       }
       return !m;
@@ -740,6 +770,7 @@ export default function App() {
             setMixedDeck(null);
             setLocalShuffle(null); setShuffled(false);
             setMultiSelected(new Set());
+            setLimitedMultiGroups(new Set());
             setCardIndex(0);
           }}
         />

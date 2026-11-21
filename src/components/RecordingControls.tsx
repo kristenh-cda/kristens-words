@@ -38,17 +38,21 @@ export function RecordingControls({
       <div className="flex items-center gap-1">
         <button
           onClick={() => {
-            if (status === 'recording') {
+            if (status === 'starting' || status === 'recording') {
               void stopRecording();
             } else {
               void record();
             }
           }}
-          className={`action-btn ${status === 'recording' ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'}`}
-          title={status === 'recording' ? 'Stop recording' : 'Record'}
-          aria-label={status === 'recording' ? 'Stop recording' : 'Record'}
+          className={`action-btn ${status === 'starting' || status === 'recording' ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'}`}
+          title={status === 'starting' || status === 'recording' ? 'Stop recording' : 'Record'}
+          aria-label={status === 'starting' || status === 'recording' ? 'Stop recording' : 'Record'}
         >
-          {status === 'recording' ? <Square className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          {status === 'starting' || status === 'recording' ? (
+            <Square className="w-4 h-4" />
+          ) : (
+            <Mic className="w-4 h-4" />
+          )}
         </button>
         {status === 'recorded' && (
           <>
