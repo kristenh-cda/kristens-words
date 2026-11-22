@@ -1,4 +1,4 @@
-const CACHE = 'kristens-words-v7';
+const CACHE = 'kristens-words-__APP_BUILD_REVISION__';
 const IMAGE_CACHE = 'kristens-words-images-v1';
 const MAX_CACHED_IMAGES = 300;
 const R2_HOST = 'pub-c53fff4920214dd59d4a14590b17acae.r2.dev';
@@ -43,11 +43,11 @@ self.addEventListener('activate', (event) => {
 
 async function fetchR2Image(request) {
   const cache = await caches.open(IMAGE_CACHE);
-  const cached = await cache.match(request);
-  if (cached) return cached;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: 'no-cache', signal: controller.signal });
     if (response.ok || response.type === 'opaque') {
       try {
         await cache.put(request, response.clone());
@@ -62,6 +62,8 @@ async function fetchR2Image(request) {
     return response;
   } catch {
     return (await cache.match(request)) ?? Response.error();
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -81,7 +83,7 @@ self.addEventListener('fetch', (event) => {
       (async () => {
         let response;
         try {
-          response = await fetch(request);
+          response = await fetch(request, { cache: 'no-cache' });
         } catch {
           return (await caches.match('/index.html')) ?? (await caches.match('/')) ?? Response.error();
         }
@@ -103,7 +105,7 @@ self.addEventListener('fetch', (event) => {
     (async () => {
       let response;
       try {
-        response = await fetch(request);
+        response = await fetch(request, { cache: 'no-cache' });
       } catch {
         return (await caches.match(request)) ?? Response.error();
       }

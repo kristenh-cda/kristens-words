@@ -15,8 +15,28 @@ createRoot(document.getElementById('root')!).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     if (import.meta.env.PROD) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
-        // registration failed — app still works online
+      let hadController = Boolean(navigator.serviceWorker.controller);
+      let reloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (hadController && !reloading) {
+          reloading = true;
+          window.location.reload();
+        }
+        hadController = true;
+      });
+
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((registration) => {
+        const checkForUpdates = () => {
+          if (navigator.onLine && document.visibilityState === 'visible') {
+            registration.update().catch((error) => console.warn('Could not check for app updates.', error));
+          }
+        };
+        checkForUpdates();
+        window.setInterval(checkForUpdates, 60_000);
+        window.addEventListener('online', checkForUpdates);
+        document.addEventListener('visibilitychange', checkForUpdates);
+      }).catch((error) => {
+        console.warn('Service worker registration failed; app remains available online.', error);
       });
     } else {
       navigator.serviceWorker.getRegistrations().then((regs) => {
