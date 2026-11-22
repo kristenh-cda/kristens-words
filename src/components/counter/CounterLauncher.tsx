@@ -7,7 +7,7 @@ export type CounterMode = 'floating' | 'split-left' | 'split-right';
 
 type CounterMessage = {
   source: 'counter-app';
-  type: 'counter-selected' | 'counter-dashboard' | 'counter-deleted' | 'counter-settings-open' | 'counter-settings-closed';
+  type: 'counter-selected' | 'counter-dashboard' | 'counter-deleted' | 'counter-settings-open' | 'counter-settings-closed' | 'counter-interaction';
   id?: string;
   openSettings?: boolean;
 };
@@ -61,10 +61,11 @@ function getFloatingControlsStyle(
 
 export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const floatingControlsRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<
-    | { kind: 'move'; pointerX: number; pointerY: number; left: number; top: number }
-    | { kind: 'resize'; centerX: number; centerY: number; startRadius: number; size: number }
-    | { kind: 'sidebar'; pointerX: number; width: number; edge: 'left' | 'right' }
+    | { kind: 'move'; pointerId: number; pointerX: number; pointerY: number; left: number; top: number }
+    | { kind: 'resize'; pointerId: number; centerX: number; centerY: number; startRadius: number; size: number }
+    | { kind: 'sidebar'; pointerId: number; pointerX: number; width: number; edge: 'left' | 'right' }
     | null
   >(null);
   const [hasOpened, setHasOpened] = useState(false);
@@ -74,6 +75,7 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
   const [settingsEditing, setSettingsEditing] = useState(false);
   const [floatingOptionsOpen, setFloatingOptionsOpen] = useState(false);
+  const [pointerDragActive, setPointerDragActive] = useState(false);
   const [selectedCounterId, setSelectedCounterId] = useState<string | null>(null);
   const [size, setSize] = useState(280);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
@@ -109,6 +111,8 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
         setSettingsEditing(true);
       } else if (event.data.type === 'counter-settings-closed') {
         setSettingsEditing(false);
+      } else if (event.data.type === 'counter-interaction') {
+        setFloatingOptionsOpen(false);
       }
     };
 
@@ -123,9 +127,20 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
   }, [hasOpened, mode, fullScreenOpen, postToCounter]);
 
   useEffect(() => {
+    if (!floatingOptionsOpen) return;
+    const closeOnOutsidePointer = (event: globalThis.PointerEvent) => {
+      if (!floatingControlsRef.current?.contains(event.target as Node)) {
+        setFloatingOptionsOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', closeOnOutsidePointer, true);
+    return () => window.removeEventListener('pointerdown', closeOnOutsidePointer, true);
+  }, [floatingOptionsOpen]);
+
+  useEffect(() => {
     const move = (event: globalThis.PointerEvent) => {
       const drag = dragRef.current;
-      if (!drag) return;
+      if (!drag || drag.pointerId !== event.pointerId) return;
       if (drag.kind === 'move') {
         setPosition({
           left: clampFloatingCoordinate(drag.left + event.clientX - drag.pointerX, window.innerWidth, size),
@@ -149,8 +164,10 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
         }
       }
     };
-    const end = () => {
+    const end = (event: globalThis.PointerEvent) => {
+      if (dragRef.current?.pointerId !== event.pointerId) return;
       dragRef.current = null;
+      setPointerDragActive(false);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', end);
@@ -202,12 +219,14 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
 
   const startMove = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    if (event.nativeEvent.isTrusted) event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     const bounds = frameRef.current?.getBoundingClientRect();
     if (!bounds) return;
+    setPointerDragActive(true);
     setPosition({ left: bounds.left, top: bounds.top });
     dragRef.current = {
       kind: 'move',
+      pointerId: event.pointerId,
       pointerX: event.clientX,
       pointerY: event.clientY,
       left: bounds.left,
@@ -217,13 +236,15 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
 
   const startResize = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    if (event.nativeEvent.isTrusted) event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     const bounds = frameRef.current?.getBoundingClientRect();
     if (!bounds) return;
+    setPointerDragActive(true);
     const centerX = bounds.left + bounds.width / 2;
     const centerY = bounds.top + bounds.height / 2;
     dragRef.current = {
       kind: 'resize',
+      pointerId: event.pointerId,
       centerX,
       centerY,
       startRadius: Math.hypot(event.clientX - centerX, event.clientY - centerY),
@@ -233,10 +254,12 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
 
   const startSidebarResize = (edge: 'left' | 'right') => (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    if (event.nativeEvent.isTrusted) event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     const width = frameRef.current?.getBoundingClientRect().width ?? Math.min(window.innerWidth * 0.36, 420);
+    setPointerDragActive(true);
     dragRef.current = {
       kind: 'sidebar',
+      pointerId: event.pointerId,
       pointerX: event.clientX,
       width,
       edge,
@@ -332,12 +355,13 @@ export function CounterLauncher({ onLayoutChange }: CounterLauncherProps) {
               title="Speech counter"
               scrolling="yes"
               className={`counter-frame ${floating ? 'counter-frame-circle' : ''}`}
+              style={floating && pointerDragActive ? { pointerEvents: 'none' } : undefined}
               onLoad={() => postToCounter({ source: 'kristens-words', type: 'counter-set-mode', mode: fullScreenOpen ? 'popup' : mode })}
             />
             {active && !selectionOpen && (
               <>
                 {floating ? (
-                  <div className="counter-floating-controls" style={floatingControlsPlacement.style}>
+                  <div ref={floatingControlsRef} className="counter-floating-controls" style={floatingControlsPlacement.style}>
                     <button onPointerDown={startMove} onClick={() => setFloatingOptionsOpen((open) => !open)} aria-label="Move counter" title="Drag to move" className="counter-move-trigger">
                       <Move className="h-5 w-5" />
                     </button>

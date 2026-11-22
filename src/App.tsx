@@ -140,6 +140,15 @@ export default function App() {
     setCounterLayout({ active, mode });
   }, []);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('counter-split-left-active', counterLayout.active && counterLayout.mode === 'split-left');
+    root.classList.toggle('counter-split-right-active', counterLayout.active && counterLayout.mode === 'split-right');
+    return () => {
+      root.classList.remove('counter-split-left-active', 'counter-split-right-active');
+    };
+  }, [counterLayout]);
+
   const cat = categoryId ? findCategory(categoryId) : undefined;
   const sub = cat && subId ? findSubcategory(cat, subId) : undefined;
   const isSceneCategory = cat?.kind === 'scene';
