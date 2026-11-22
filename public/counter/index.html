@@ -1379,7 +1379,30 @@
         });
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/counter/service-worker.js', { scope: '/counter/' })
+            let hadController = Boolean(navigator.serviceWorker.controller);
+            let reloading = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (hadController && !reloading) {
+                    reloading = true;
+                    window.location.reload();
+                }
+                hadController = true;
+            });
+
+            navigator.serviceWorker.register('/counter/service-worker.js', {
+                scope: '/counter/',
+                updateViaCache: 'none'
+            }).then((registration) => {
+                const checkForUpdates = () => {
+                    if (navigator.onLine && document.visibilityState === 'visible') {
+                        registration.update().catch((error) => console.warn('Could not check for counter updates.', error));
+                    }
+                };
+                checkForUpdates();
+                window.setInterval(checkForUpdates, 60_000);
+                window.addEventListener('online', checkForUpdates);
+                document.addEventListener('visibilitychange', checkForUpdates);
+            })
                 .catch((error) => console.warn('Counter offline cache registration failed.', error));
         }
 

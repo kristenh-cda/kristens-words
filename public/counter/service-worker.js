@@ -29,7 +29,7 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith(
-        fetch(request)
+        fetch(request, { cache: 'no-cache' })
             .then(async (response) => {
                 if (response.ok) {
                     const cache = await caches.open(CACHE_NAME);
