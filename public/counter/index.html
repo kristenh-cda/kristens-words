@@ -1076,6 +1076,7 @@
         }
 
         window.handleTap = function(e) {
+            window.parent.postMessage({ source: 'counter-app', type: 'counter-interaction' }, location.origin);
             if (isSwiping) {
                 isSwiping = false;
                 return;

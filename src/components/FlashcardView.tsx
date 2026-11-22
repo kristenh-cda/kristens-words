@@ -46,25 +46,26 @@ export function FlashcardView({ slot, index, total, seen, fullscreen = false, sh
   const [imageStatus, setImageStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [flash, setFlash] = useState<'correct' | 'try' | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const failedImageUrlsRef = useRef(new Set<string>());
+  const attempt = attempts[stage];
 
   useEffect(() => {
+    failedImageUrlsRef.current.clear();
     setStage(0);
     setImageStatus('loading');
   }, [plan]);
 
-  // Handle cached images: if the browser already has the image, onLoad may
-  // not fire, so check synchronously after mount.
   useEffect(() => {
-    if (imgRef.current && imgRef.current.complete) {
-      if (imgRef.current.naturalWidth > 0) {
-        setImageStatus('loaded');
-      } else {
-        setImageStatus('error');
-      }
+    const image = imgRef.current;
+    if (!image?.complete) return;
+    if (image.naturalWidth > 0) {
+      setImageStatus('loaded');
+    } else if (attempt?.url && !failedImageUrlsRef.current.has(attempt.url)) {
+      failedImageUrlsRef.current.add(attempt.url);
+      setStage((prev) => Math.min(prev + 1, attempts.length - 1));
     }
-  }, [plan]);
+  }, [attempt?.url, attempts.length]);
 
-  const attempt = attempts[stage];
   const isIconStage = attempt?.stage === 'icon' || stage >= attempts.length - 1;
   const isPlaceholderStage = attempt?.stage === 'placeholder';
   const isFallback = isPlaceholderStage || isIconStage;
@@ -77,6 +78,8 @@ export function FlashcardView({ slot, index, total, seen, fullscreen = false, sh
   };
 
   const handleImgError = () => {
+    if (attempt?.url && failedImageUrlsRef.current.has(attempt.url)) return;
+    if (attempt?.url) failedImageUrlsRef.current.add(attempt.url);
     setImageStatus('error');
     setStage((prev) => Math.min(prev + 1, attempts.length - 1));
   };

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImageOff } from 'lucide-react';
 import {
   r2ImagePaths,
@@ -26,13 +26,27 @@ export function FlashcardImage({ word, category, subId, groupId, className = '' 
 
   const [stage, setStage] = useState(0);
   const [imgReady, setImgReady] = useState(false);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const failedImageUrlsRef = useRef(new Set<string>());
+  const attempt = attempts[stage];
 
   useEffect(() => {
+    failedImageUrlsRef.current.clear();
     setStage(0);
     setImgReady(false);
   }, [plan]);
 
-  const attempt = attempts[stage];
+  useEffect(() => {
+    const image = imageRef.current;
+    if (!image?.complete) return;
+    if (image.naturalWidth > 0) {
+      setImgReady(true);
+    } else if (attempt?.url && !failedImageUrlsRef.current.has(attempt.url)) {
+      failedImageUrlsRef.current.add(attempt.url);
+      setStage((prev) => Math.min(prev + 1, attempts.length - 1));
+    }
+  }, [attempt?.url, attempts.length]);
+
   const isIconStage = attempt?.stage === 'icon' || stage >= attempts.length - 1;
   const isPlaceholderStage = attempt?.stage === 'placeholder';
   const isFallback = isPlaceholderStage || isIconStage;
@@ -45,6 +59,8 @@ export function FlashcardImage({ word, category, subId, groupId, className = '' 
   };
 
   const handleImgError = () => {
+    if (attempt?.url && failedImageUrlsRef.current.has(attempt.url)) return;
+    if (attempt?.url) failedImageUrlsRef.current.add(attempt.url);
     setImgReady(false);
     setStage((prev) => Math.min(prev + 1, attempts.length - 1));
   };
@@ -59,6 +75,7 @@ export function FlashcardImage({ word, category, subId, groupId, className = '' 
       ) : (
         <img
           key={attempt.url}
+          ref={imageRef}
           src={attempt.url ?? undefined}
           alt={isFallback ? `Placeholder for ${word}` : word}
           width={1200}

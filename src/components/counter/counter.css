@@ -22,6 +22,45 @@
   width: auto;
 }
 
+html.counter-split-left-active .counter-main-popup {
+  right: 0;
+  left: var(--counter-split-width);
+  width: auto;
+}
+
+html.counter-split-right-active .counter-main-popup {
+  right: var(--counter-split-width);
+  left: 0;
+  width: auto;
+}
+
+html.counter-split-left-active .counter-selection-backdrop {
+  right: 0;
+  left: var(--counter-split-width);
+  width: auto;
+}
+
+html.counter-split-right-active .counter-selection-backdrop {
+  right: var(--counter-split-width);
+  left: 0;
+  width: auto;
+}
+
+html.counter-split-left-active .counter-frame-selection {
+  left: calc(var(--counter-split-width) + (100vw - var(--counter-split-width)) / 2) !important;
+  width: min(960px, calc(100vw - var(--counter-split-width) - 24px)) !important;
+}
+
+html.counter-split-right-active .counter-frame-selection {
+  left: calc((100vw - var(--counter-split-width)) / 2) !important;
+  width: min(960px, calc(100vw - var(--counter-split-width) - 24px)) !important;
+}
+
+html.counter-split-right-active .counter-selection-close {
+  right: auto;
+  left: calc(100vw - var(--counter-split-width) - 48px);
+}
+
 .counter-frame-shell {
   overflow: visible;
 }
@@ -147,11 +186,12 @@
   justify-content: center;
 }
 
-.counter-floating-controls:hover .counter-options-floating,
-.counter-floating-controls:focus-within .counter-options-floating {
-  visibility: visible;
-  opacity: 1;
-  transform: translateX(0);
+@media (hover: hover) {
+  .counter-floating-controls:hover .counter-options-floating {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .counter-options-fullscreen {
@@ -253,12 +293,6 @@
 
 @media (pointer: coarse) {
   .counter-options-floating.counter-options-open,
-  .counter-floating-controls:focus-within .counter-options-floating {
-    visibility: visible;
-    opacity: 1;
-    transform: translateX(0);
-  }
-
   .counter-options-docked {
     max-width: calc(100% - 16px);
     flex-wrap: wrap;

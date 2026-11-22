@@ -51,7 +51,7 @@ export function RecordingWaveformDialog({
 
   return createPortal((
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+      className="counter-main-popup fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
