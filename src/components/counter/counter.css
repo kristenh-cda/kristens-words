@@ -186,6 +186,12 @@ html.counter-split-right-active .counter-selection-close {
   justify-content: center;
 }
 
+.counter-options-floating.counter-options-open {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(0);
+}
+
 @media (hover: hover) {
   .counter-floating-controls:hover .counter-options-floating {
     visibility: visible;
