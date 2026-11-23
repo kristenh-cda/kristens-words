@@ -201,7 +201,7 @@ export function MultiFlashcard({
 
         {/* Bottom bar (not overlay) */}
         <div className="shrink-0 bg-black/60 backdrop-blur px-3 py-3">
-          <div className="mx-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+          <div className="mx-auto grid w-full max-w-[1920px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-1 sm:gap-4 sm:px-2 lg:px-6 2xl:px-10">
             {/* Left corner: mic (optional) + check/dash when anchored left */}
             <div className="flex items-center gap-2">
               {settings.showRecordButton && recordButton()}
@@ -255,7 +255,7 @@ export function MultiFlashcard({
               )}
               <button
                 onClick={onToggleFullscreen}
-                className="flex h-10 w-10 items-center justify-center text-gray-500 transition-colors hover:text-gray-400 active:scale-95"
+                className="flex h-10 w-10 shrink-0 items-center justify-center text-gray-500 transition-colors hover:text-gray-400 active:scale-95"
                 title="Exit fullscreen"
               >
                 <X className="w-5 h-5" />
