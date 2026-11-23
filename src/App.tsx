@@ -743,14 +743,14 @@ export default function App() {
             <img
               src="/ready-play-speech.png"
               alt=""
-              className="h-8 w-8 object-contain sm:h-10 sm:w-10 xl:h-12 xl:w-12"
+              className="w-8 h-8 object-contain"
               draggable={false}
             />
             <h1 className="min-w-0">
               <img
                 src="/branding/kristens-words-bakula.png"
                 alt="Kristen's Words"
-                className="block h-auto w-[180px] max-w-full sm:w-[240px] xl:w-[300px] 2xl:w-[340px]"
+                className="block h-auto w-[180px] max-w-full sm:w-[240px]"
                 draggable={false}
               />
             </h1>
@@ -805,8 +805,8 @@ export default function App() {
       )}
 
       {/* Lobby centered in the space between the header/filters and the bottom of the screen; min-h ensures it never overlaps the header/filter bar above */}
-      <main className="flex min-h-0 flex-1 items-center justify-center px-4 pb-6 sm:px-6 xl:px-10">
-        <div className="max-h-full w-full max-w-7xl overflow-y-auto">
+      <main className="flex-1 min-h-0 flex items-center justify-center px-4 pb-6">
+        <div className="w-full max-w-5xl max-h-full overflow-y-auto">
           {isSceneCategory ? (
             <div className="max-w-md mx-auto bg-white rounded-2xl border border-gray-200 p-8 text-center">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-amber-500 mx-auto mb-4 flex items-center justify-center text-white">
