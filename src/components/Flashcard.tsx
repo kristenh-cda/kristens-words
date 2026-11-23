@@ -257,7 +257,7 @@ export function Flashcard({
 
       <div className={`shrink-0 text-center px-6 py-3 sm:py-4 ${settings.showText ? '' : 'py-1'}`}>
         {settings.showText && (
-          <h2 className="font-medium text-gray-800 tracking-tight text-balance text-3xl sm:text-4xl xl:text-6xl">
+          <h2 className="font-medium text-gray-800 tracking-tight text-balance text-3xl sm:text-4xl">
             {formatWordDisplay(word, category.id, subId)}
           </h2>
         )}
