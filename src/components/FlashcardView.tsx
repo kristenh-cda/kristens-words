@@ -170,7 +170,7 @@ export function FlashcardView({ slot, index, total, seen, fullscreen = false, sh
 
       <div className="shrink-0 px-3 py-3 flex flex-col items-center gap-2">
         {showText && (
-          <h2 className="text-xl font-medium text-gray-800 tracking-tight text-balance text-center">
+          <h2 className="text-xl font-medium text-gray-800 tracking-tight text-balance text-center xl:text-3xl">
             {formatWordDisplay(word, category.id, subId)}
           </h2>
         )}
