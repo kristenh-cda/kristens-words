@@ -43,6 +43,7 @@ import {
   type FlashcardSettings,
 } from '@/components/FlashcardSettings';
 import { CounterLauncher, type CounterMode } from '@/components/counter/CounterLauncher';
+import { OfflineImageSyncButton } from '@/components/OfflineImageSyncButton';
 
 function FloralMark({ className }: { className?: string }) {
   return (
@@ -756,6 +757,7 @@ export default function App() {
             </h1>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <OfflineImageSyncButton />
             <CounterLauncher onLayoutChange={updateCounterLayout} />
             <button
               onClick={swapMode}

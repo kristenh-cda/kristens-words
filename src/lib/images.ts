@@ -177,17 +177,19 @@ export type ImagePlan = {
  */
 const PLACEHOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800"><rect width="800" height="800" fill="#f3f4f6"/><rect x="40" y="40" width="720" height="720" rx="32" fill="#ffffff" stroke="#e5e7eb" stroke-width="4"/><g transform="translate(400 370)" fill="none" stroke="#cbd5e1" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><rect x="-130" y="-95" width="260" height="190" rx="24"/><circle cx="-60" cy="-40" r="24"/><path d="M-130 75 L-20 -15 L45 55 L130 -25 L130 95 L-130 95 Z"/></g><text x="400" y="570" font-family="system-ui,sans-serif" font-size="44" font-weight="700" fill="#94a3b8" text-anchor="middle">No image</text></svg>`;
 export const PLACEHOLDER_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(PLACEHOLDER_SVG)}`;
+const CAPITALIZED_ASSET_WORDS = new Set(['friday', 'thursday', 'tuesday']);
 
 /**
  * Build the ordered image-resolution plan for a flashcard word.
  *
- * Stage order:
+ * Default stage order:
  *  1. lowercase .svg
  *  2. capitalized .svg
  *  3. lowercase .png
  *  4. capitalized .png
  *  5. lowercase .jpg
  *  6. capitalized .jpg
+ * Known title-case assets are tried first when their R2 filename is capitalized.
  *  7. Single static placeholder image
  *  8. Static Lucide icon (final safety net)
  */
@@ -228,17 +230,35 @@ export function buildImageAttempts(word: string, sound: string, position: string
   const base = `${R2_BASE}/${sound}/${position}`;
   const lower = lowercaseSlug(word);
   const cap = capitalizeWord(word);
-
-  return [
+  const attempts: ImageAttempt[] = [
     { stage: 'r2-lower-svg', url: `${base}/${lower}.svg` },
     { stage: 'r2-cap-svg', url: `${base}/${cap}.svg` },
     { stage: 'r2-lower-png', url: `${base}/${lower}.png` },
     { stage: 'r2-cap-png', url: `${base}/${cap}.png` },
     { stage: 'r2-lower-jpg', url: `${base}/${lower}.jpg` },
     { stage: 'r2-cap-jpg', url: `${base}/${cap}.jpg` },
+  ];
+
+  if (CAPITALIZED_ASSET_WORDS.has(word.trim().toLowerCase())) {
+    const capitalizedSvg = attempts.splice(1, 1)[0];
+    attempts.unshift(capitalizedSvg);
+  }
+
+  return [
+    ...attempts,
     { stage: 'placeholder', url: PLACEHOLDER_DATA_URI },
     { stage: 'icon', url: null },
   ];
+}
+
+/** Return the remote image candidates in the same order used by card rendering. */
+export function r2ImageCandidates(plan: ImagePlan): string[] {
+  return plan.attempts
+    .filter(
+      (attempt): attempt is ImageAttempt & { url: string } =>
+        attempt.url !== null && attempt.stage !== 'placeholder' && attempt.stage !== 'icon',
+    )
+    .map((attempt) => attempt.url);
 }
 
 /* ----------------------------- picture scenes ----------------------------- */

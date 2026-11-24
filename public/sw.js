@@ -1,6 +1,6 @@
 const CACHE = 'kristens-words-__APP_BUILD_REVISION__';
+const APP_CACHE_PREFIX = 'kristens-words-';
 const IMAGE_CACHE = 'kristens-words-images-v1';
-const MAX_CACHED_IMAGES = 300;
 const R2_HOST = 'pub-c53fff4920214dd59d4a14590b17acae.r2.dev';
 const SHELL_ASSETS = [
   '/',
@@ -9,6 +9,12 @@ const SHELL_ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
   '/branding/kristens-words-bakula.png',
+  '/fonts/Bubble.woff',
+  '/fonts/Jenthill.woff',
+  '/counter/index.html',
+  '/counter/icon.png',
+  '/counter/service-worker.js',
+  '/counter/tailwind.css',
 ];
 
 async function precacheApp() {
@@ -34,7 +40,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== CACHE && key !== IMAGE_CACHE)
+          .filter((key) => key.startsWith(APP_CACHE_PREFIX) && key !== CACHE && key !== IMAGE_CACHE)
           .map((key) => caches.delete(key)),
       ),
     ).then(() => self.clients.claim()),
@@ -51,17 +57,13 @@ async function fetchR2Image(request) {
     if (response.ok || response.type === 'opaque') {
       try {
         await cache.put(request, response.clone());
-        const keys = await cache.keys();
-        if (keys.length > MAX_CACHED_IMAGES) {
-          await Promise.all(keys.slice(0, keys.length - MAX_CACHED_IMAGES).map((key) => cache.delete(key)));
-        }
       } catch (error) {
         console.warn('Could not save an image for offline use.', error);
       }
     }
     return response;
   } catch {
-    return (await cache.match(request)) ?? Response.error();
+    return (await cache.match(request, { ignoreVary: true })) ?? Response.error();
   } finally {
     clearTimeout(timeout);
   }
