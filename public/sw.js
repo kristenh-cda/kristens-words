@@ -7,8 +7,6 @@ const COUNTER_EXTERNAL_ASSETS = [
   'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap',
   'https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap',
-  'https://cdn.pixabay.com/download/audio/2026/03/15/audio_82c2b79a54.mp3?filename=pop-423717.mp3',
-  'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c89c836965.mp3?filename=fanfare-46385.mp3',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js',
   'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js',
 ];
@@ -16,7 +14,6 @@ const COUNTER_EXTERNAL_HOSTS = new Set([
   'cdn.jsdelivr.net',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
-  'cdn.pixabay.com',
   'www.gstatic.com',
 ]);
 const SHELL_ASSETS = [
@@ -31,6 +28,7 @@ const SHELL_ASSETS = [
   '/counter/index.html',
   '/counter/icon.png',
   '/counter/service-worker.js',
+  '/counter/sw.js',
   '/counter/tailwind.css',
 ];
 
@@ -188,7 +186,7 @@ async function fetchCounterExternalAsset(request) {
   try {
     return await fetch(request);
   } catch {
-    return (await caches.match(request, { ignoreVary: true })) ?? Response.error();
+    return (await caches.match(request, { ignoreSearch: true, ignoreVary: true })) ?? Response.error();
   }
 }
 
