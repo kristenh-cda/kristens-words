@@ -14,6 +14,12 @@ createRoot(document.getElementById('root')!).render(
 // previously-installed copy otherwise.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
+    if (navigator.storage && typeof navigator.storage.persist === 'function') {
+      navigator.storage.persist().catch((error) => {
+        console.warn('Could not request persistent offline storage.', error);
+      });
+    }
+
     if (import.meta.env.PROD) {
       let hadController = Boolean(navigator.serviceWorker.controller);
       let reloading = false;
