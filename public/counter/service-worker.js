@@ -59,7 +59,11 @@ self.addEventListener('fetch', (event) => {
             })
             .catch(async () => {
                 const cache = await caches.open(cacheName);
-                const cached = await cache.match(request) || await caches.match(request);
+                const matchOptions = isCounterAsset
+                    ? { ignoreSearch: true, ignoreVary: true }
+                    : { ignoreVary: true };
+                const cached = await cache.match(request, matchOptions)
+                    || await caches.match(request, matchOptions);
                 if (cached) return cached;
                 if (request.mode === 'navigate') return (await caches.match('/counter/index.html')) || Response.error();
                 return Response.error();
