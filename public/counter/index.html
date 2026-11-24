@@ -73,6 +73,28 @@
             overscroll-behavior: contain;
         }
 
+        #counterSyncStatus {
+            position: fixed;
+            z-index: 9999;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            max-width: calc(100vw - 20px);
+            padding: 6px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 9999px;
+            background: rgba(15, 23, 42, 0.78);
+            color: white;
+            font: 600 11px/1.2 Inter, sans-serif;
+            text-align: center;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+
+        #counterSyncStatus[hidden] {
+            display: none;
+        }
+
         body.counter-floating .liquid-container {
             width: min(84vw, 84vh);
             height: min(84vw, 84vh);
@@ -251,6 +273,7 @@
 
     <!-- Main App Container -->
     <div id="app" class="w-full h-full min-h-screen"></div>
+    <div id="counterSyncStatus" role="status" aria-live="polite" hidden></div>
 
     <script type="module">
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -371,6 +394,27 @@
         function persistPendingChanges() {
             localStorage.setItem(pendingWritesKey, JSON.stringify(pendingCounterWrites));
             localStorage.setItem(pendingDeletesKey, JSON.stringify(pendingCounterDeletes));
+            updateSyncStatus();
+        }
+
+        function updateSyncStatus() {
+            const status = document.getElementById('counterSyncStatus');
+            if (!status) return;
+
+            const hasPendingChanges =
+                Object.keys(pendingCounterWrites).length > 0 ||
+                Object.keys(pendingCounterDeletes).length > 0;
+            const offline = navigator.onLine === false;
+            const syncing = syncInProgress && hasPendingChanges;
+            if (!offline && !syncing) {
+                status.hidden = true;
+                return;
+            }
+
+            status.textContent = offline
+                ? 'Offline - changes saved on this device'
+                : 'Syncing saved changes...';
+            status.hidden = false;
         }
 
         function syncPendingChanges() {
@@ -380,9 +424,17 @@
                 return;
             }
 
+            const writeEntries = Object.entries(pendingCounterWrites);
+            const deleteIds = Object.keys(pendingCounterDeletes);
+            if (writeEntries.length === 0 && deleteIds.length === 0) {
+                updateSyncStatus();
+                return;
+            }
+
             syncInProgress = true;
+            updateSyncStatus();
             const activeId = syncCode.trim() || 'default_local_user';
-            const writes = Object.entries(pendingCounterWrites).map(([id, counter]) => {
+            const writes = writeEntries.map(([id, counter]) => {
                 const savedValue = JSON.stringify(counter);
                 const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
                 return firestoreApi.setDoc(counterRef, counter).then(() => {
@@ -395,15 +447,22 @@
                     console.error('Counter sync failed; the change remains queued locally.', error);
                 });
             });
-            const deletes = Object.keys(pendingCounterDeletes).map((id) => {
+            const deletes = deleteIds.map((id) => {
                 const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
-                return firestoreApi.deleteDoc(counterRef).catch((error) => {
+                return firestoreApi.deleteDoc(counterRef).then(() => {
+                    const currentActiveId = syncCode.trim() || 'default_local_user';
+                    if (currentActiveId === activeId && pendingCounterDeletes[id]) {
+                        delete pendingCounterDeletes[id];
+                        persistPendingChanges();
+                    }
+                }).catch((error) => {
                     console.error('Counter deletion sync failed; the change remains queued locally.', error);
                 });
             });
 
             Promise.all([...writes, ...deletes]).finally(() => {
                 syncInProgress = false;
+                updateSyncStatus();
                 if (syncRequested) {
                     syncRequested = false;
                     syncPendingChanges();
@@ -1371,12 +1430,20 @@
         });
 
         window.addEventListener('online', () => {
+            updateSyncStatus();
             initializeFirebase();
             syncPendingChanges();
         });
         window.addEventListener('focus', () => {
             initializeFirebase();
             syncPendingChanges();
+        });
+        window.addEventListener('offline', updateSyncStatus);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                initializeFirebase();
+                syncPendingChanges();
+            }
         });
 
         if ('serviceWorker' in navigator) {
@@ -1408,6 +1475,7 @@
         }
 
         initializeFirebase();
+        updateSyncStatus();
         renderApp();
     </script>
 </body>
