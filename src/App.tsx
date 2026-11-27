@@ -43,6 +43,7 @@ import {
   type FlashcardSettings,
 } from '@/components/FlashcardSettings';
 import { CounterLauncher, type CounterMode } from '@/components/counter/CounterLauncher';
+import { OfflineImageSyncButton } from '@/components/OfflineImageSyncButton';
 
 function FloralMark({ className }: { className?: string }) {
   return (
@@ -738,7 +739,7 @@ export default function App() {
         <div className="absolute inset-0 bg-gradient-to-b from-gray-100/0 via-gray-100/0 to-gray-100/0" />
       </div>
       <header className="w-full bg-gradient-to-b from-white/100 via-white/80 to-white/60 backdrop-blur border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+        <div className="mx-auto flex w-full max-w-[1920px] flex-wrap items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-6 lg:flex-nowrap lg:px-8 2xl:px-12">
           <div className="flex items-center gap-2">
             <img
               src="/ready-play-speech.png"
@@ -756,6 +757,7 @@ export default function App() {
             </h1>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-4">
+            <OfflineImageSyncButton />
             <CounterLauncher onLayoutChange={updateCounterLayout} />
             <button
               onClick={swapMode}

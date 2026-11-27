@@ -181,8 +181,8 @@ html.counter-split-right-active .counter-selection-close {
 }
 
 .counter-options-floating {
-  max-width: calc(100vw - 48px);
-  flex-wrap: wrap;
+  max-width: min(300px, calc(100vw - 24px));
+  flex-wrap: nowrap;
   justify-content: center;
 }
 
@@ -236,6 +236,15 @@ html.counter-split-right-active .counter-selection-close {
   color: #334155;
   cursor: pointer;
   touch-action: manipulation;
+}
+
+.counter-control.counter-resize-control {
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.counter-options-floating > .counter-control {
+  flex: 0 0 auto;
 }
 
 .counter-control:hover,
@@ -300,8 +309,8 @@ html.counter-split-right-active .counter-selection-close {
 @media (pointer: coarse) {
   .counter-options-floating.counter-options-open,
   .counter-options-docked {
-    max-width: calc(100% - 16px);
-    flex-wrap: wrap;
+    max-width: min(300px, calc(100vw - 24px));
+    flex-wrap: nowrap;
     justify-content: center;
     opacity: 1;
     pointer-events: auto;
@@ -312,5 +321,10 @@ html.counter-split-right-active .counter-selection-close {
     height: 40px;
     min-width: 40px;
     min-height: 40px;
+  }
+
+  .counter-options-floating {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
   }
 }

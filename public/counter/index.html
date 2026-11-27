@@ -73,6 +73,28 @@
             overscroll-behavior: contain;
         }
 
+        #counterSyncStatus {
+            position: fixed;
+            z-index: 9999;
+            left: 50%;
+            bottom: 10px;
+            transform: translateX(-50%);
+            max-width: calc(100vw - 20px);
+            padding: 6px 10px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 9999px;
+            background: rgba(15, 23, 42, 0.78);
+            color: white;
+            font: 600 11px/1.2 Inter, sans-serif;
+            text-align: center;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+
+        #counterSyncStatus[hidden] {
+            display: none;
+        }
+
         body.counter-floating .liquid-container {
             width: min(84vw, 84vh);
             height: min(84vw, 84vh);
@@ -251,6 +273,7 @@
 
     <!-- Main App Container -->
     <div id="app" class="w-full h-full min-h-screen"></div>
+    <div id="counterSyncStatus" role="status" aria-live="polite" hidden></div>
 
     <script type="module">
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -314,29 +337,11 @@
             red_santa: { color: '#E64836', icon: '🎅' }
         };
 
-        // Audio URLs & Preloaded In-Memory Buffers
-        const POP_SOUND_URL = "https://cdn.pixabay.com/download/audio/2026/03/15/audio_82c2b79a54.mp3?filename=pop-423717.mp3";
-        const FANFARE_SOUND_URL = "https://cdn.pixabay.com/download/audio/2022/03/15/audio_c89c836965.mp3?filename=fanfare-46385.mp3";
-
-        const popAudio = new Audio(POP_SOUND_URL);
-        const fanfareAudio = new Audio(FANFARE_SOUND_URL);
-        popAudio.preload = 'auto';
-        fanfareAudio.preload = 'auto';
-        popAudio.load();
-        fanfareAudio.load();
-
         // App State
         let counters = [];
         let currentView = 'dashboard';
         let audioCtx = null;
-        let popRawArrayBuffer = null;
-        let fanfareRawArrayBuffer = null;
-        let popAudioBuffer = null;
-        let fanfareAudioBuffer = null;
-        let isDecodingPop = false;
-        let isDecodingFanfare = false;
-        let touchStartY = 0;
-        let isSwiping = false;
+        const counterPointers = new Map();
         let isCelebrating = false;
         let isDraining = false;
         let openSettingsImmediately = false;
@@ -371,6 +376,20 @@
         function persistPendingChanges() {
             localStorage.setItem(pendingWritesKey, JSON.stringify(pendingCounterWrites));
             localStorage.setItem(pendingDeletesKey, JSON.stringify(pendingCounterDeletes));
+            updateSyncStatus();
+        }
+
+        function updateSyncStatus() {
+            const status = document.getElementById('counterSyncStatus');
+            if (!status) return;
+
+            if (navigator.onLine !== false) {
+                status.hidden = true;
+                return;
+            }
+
+            status.textContent = 'Offline - changes saved on this device';
+            status.hidden = false;
         }
 
         function syncPendingChanges() {
@@ -380,9 +399,17 @@
                 return;
             }
 
+            const writeEntries = Object.entries(pendingCounterWrites);
+            const deleteIds = Object.keys(pendingCounterDeletes);
+            if (writeEntries.length === 0 && deleteIds.length === 0) {
+                updateSyncStatus();
+                return;
+            }
+
             syncInProgress = true;
+            updateSyncStatus();
             const activeId = syncCode.trim() || 'default_local_user';
-            const writes = Object.entries(pendingCounterWrites).map(([id, counter]) => {
+            const writes = writeEntries.map(([id, counter]) => {
                 const savedValue = JSON.stringify(counter);
                 const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
                 return firestoreApi.setDoc(counterRef, counter).then(() => {
@@ -395,15 +422,22 @@
                     console.error('Counter sync failed; the change remains queued locally.', error);
                 });
             });
-            const deletes = Object.keys(pendingCounterDeletes).map((id) => {
+            const deletes = deleteIds.map((id) => {
                 const counterRef = firestoreApi.doc(db, 'artifacts', appId, 'users', activeId, 'counters', id);
-                return firestoreApi.deleteDoc(counterRef).catch((error) => {
+                return firestoreApi.deleteDoc(counterRef).then(() => {
+                    const currentActiveId = syncCode.trim() || 'default_local_user';
+                    if (currentActiveId === activeId && pendingCounterDeletes[id]) {
+                        delete pendingCounterDeletes[id];
+                        persistPendingChanges();
+                    }
+                }).catch((error) => {
                     console.error('Counter deletion sync failed; the change remains queued locally.', error);
                 });
             });
 
             Promise.all([...writes, ...deletes]).finally(() => {
                 syncInProgress = false;
+                updateSyncStatus();
                 if (syncRequested) {
                     syncRequested = false;
                     syncPendingChanges();
@@ -553,63 +587,9 @@
             return audioCtx;
         }
 
-        // Decode fetched audio files into RAM AudioBuffers for zero-lag, overlapping playback
-        function decodePreloadedBuffers() {
-            const ctx = ensureAudioContext();
-            if (!ctx) return;
-
-            if (popRawArrayBuffer && !popAudioBuffer && !isDecodingPop) {
-                isDecodingPop = true;
-                ctx.decodeAudioData(popRawArrayBuffer.slice(0))
-                    .then(decoded => {
-                        popAudioBuffer = decoded;
-                    })
-                    .catch(() => {})
-                    .finally(() => {
-                        isDecodingPop = false;
-                    });
-            }
-
-            if (fanfareRawArrayBuffer && !fanfareAudioBuffer && !isDecodingFanfare) {
-                isDecodingFanfare = true;
-                ctx.decodeAudioData(fanfareRawArrayBuffer.slice(0))
-                    .then(decoded => {
-                        fanfareAudioBuffer = decoded;
-                    })
-                    .catch(() => {})
-                    .finally(() => {
-                        isDecodingFanfare = false;
-                    });
-            }
-        }
-
-        // Fetch raw audio bytes into memory immediately on startup
-        function preloadAudioAssets() {
-            fetch(POP_SOUND_URL)
-                .then(res => res.ok ? res.arrayBuffer() : null)
-                .then(buf => {
-                    if (buf) {
-                        popRawArrayBuffer = buf;
-                        decodePreloadedBuffers();
-                    }
-                })
-                .catch(() => {});
-
-            fetch(FANFARE_SOUND_URL)
-                .then(res => res.ok ? res.arrayBuffer() : null)
-                .then(buf => {
-                    if (buf) {
-                        fanfareRawArrayBuffer = buf;
-                        decodePreloadedBuffers();
-                    }
-                })
-                .catch(() => {});
-        }
-
         // Unlock & wake audio on first user interaction or when returning to the tab/app
         function unlockAudioEngine() {
             ensureAudioContext();
-            decodePreloadedBuffers();
         }
 
         window.addEventListener('touchstart', unlockAudioEngine, { passive: true });
@@ -620,22 +600,6 @@
                 unlockAudioEngine();
             }
         });
-
-        preloadAudioAssets();
-
-        function playDecodedBuffer(buffer) {
-            const ctx = ensureAudioContext();
-            if (!ctx || !buffer) return false;
-            try {
-                const source = ctx.createBufferSource();
-                source.buffer = buffer;
-                source.connect(ctx.destination);
-                source.start(0);
-                return true;
-            } catch (e) {
-                return false;
-            }
-        }
 
         function playSynthPop(isDecrease = false) {
             const ctx = ensureAudioContext();
@@ -673,36 +637,14 @@
             });
         }
 
-        // Audio Triggers: Instant RAM Buffer -> Cloned HTMLAudio -> Web Audio Synth Fallback
+        // Generate sound effects locally so they work without network access.
         function playPopSound(isDecrease = false) {
             unlockAudioEngine();
-
-            if (popAudioBuffer && playDecodedBuffer(popAudioBuffer)) {
-                return;
-            }
-
-            if (popAudio.readyState >= 2) {
-                const clone = popAudio.cloneNode(true);
-                clone.play().catch(() => playSynthPop(isDecrease));
-                return;
-            }
-
             playSynthPop(isDecrease);
         }
 
         function playCelebrateSound() {
             unlockAudioEngine();
-
-            if (fanfareAudioBuffer && playDecodedBuffer(fanfareAudioBuffer)) {
-                return;
-            }
-
-            if (fanfareAudio.readyState >= 2) {
-                const clone = fanfareAudio.cloneNode(true);
-                clone.play().catch(() => playSynthFanfare());
-                return;
-            }
-
             playSynthFanfare();
         }
 
@@ -924,9 +866,9 @@
 
             let html = `
                 <div id="counterStage" class="fixed inset-0 flex flex-col items-center justify-center cursor-pointer touch-none"
-                     onclick="handleTap(event)"
-                     ontouchstart="handleTouchStart(event)"
-                     ontouchend="handleTouchEnd(event)">
+                     onpointerdown="handleCounterPointerDown(event)"
+                     onpointerup="handleCounterPointerUp(event)"
+                     onpointercancel="handleCounterPointerCancel(event)">
 
                     <div id="counterHeader" class="absolute top-6 left-6 z-20 flex items-center gap-4">
                         <button onclick="goBack(event)" class="${btnClass} p-3 rounded-full backdrop-blur-md transition-colors shadow-sm">
@@ -1031,21 +973,30 @@
             }
         }
 
-        window.handleTouchStart = function(e) {
+        window.handleCounterPointerDown = function(e) {
+            if (e.button !== undefined && e.button !== 0) return;
             if (e.target.closest('button') || e.target.closest('input')) return;
-            touchStartY = e.changedTouches[0].screenY;
-            isSwiping = false;
+            counterPointers.set(e.pointerId, { startY: e.clientY });
         };
 
-        window.handleTouchEnd = function(e) {
-            if (e.target.closest('button') || e.target.closest('input')) return;
-            if (isCelebrating) return;
-            const endY = e.changedTouches[0].screenY;
-
-            if (endY - touchStartY > 40) {
-                isSwiping = true;
-                decreaseCount();
+        window.handleCounterPointerUp = function(e) {
+            if (e.target.closest('button') || e.target.closest('input')) {
+                counterPointers.delete(e.pointerId);
+                return;
             }
+            const pointer = counterPointers.get(e.pointerId);
+            counterPointers.delete(e.pointerId);
+            if (!pointer || isCelebrating) return;
+
+            if (e.clientY - pointer.startY > 40) {
+                decreaseCount();
+                return;
+            }
+            handleTap(e);
+        };
+
+        window.handleCounterPointerCancel = function(e) {
+            counterPointers.delete(e.pointerId);
         };
 
         window.handleMinus = function(e) {
@@ -1077,10 +1028,6 @@
 
         window.handleTap = function(e) {
             window.parent.postMessage({ source: 'counter-app', type: 'counter-interaction' }, location.origin);
-            if (isSwiping) {
-                isSwiping = false;
-                return;
-            }
             if (isCelebrating) return;
 
             if (e.target.closest('button') || e.target.closest('input')) return;
@@ -1371,6 +1318,7 @@
         });
 
         window.addEventListener('online', () => {
+            updateSyncStatus();
             initializeFirebase();
             syncPendingChanges();
         });
@@ -1378,36 +1326,26 @@
             initializeFirebase();
             syncPendingChanges();
         });
+        window.addEventListener('offline', updateSyncStatus);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                initializeFirebase();
+                syncPendingChanges();
+            }
+        });
 
         if ('serviceWorker' in navigator) {
-            let hadController = Boolean(navigator.serviceWorker.controller);
-            let reloading = false;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (hadController && !reloading) {
-                    reloading = true;
-                    window.location.reload();
-                }
-                hadController = true;
-            });
-
-            navigator.serviceWorker.register('/counter/service-worker.js', {
-                scope: '/counter/',
-                updateViaCache: 'none'
-            }).then((registration) => {
-                const checkForUpdates = () => {
-                    if (navigator.onLine && document.visibilityState === 'visible') {
-                        registration.update().catch((error) => console.warn('Could not check for counter updates.', error));
-                    }
-                };
-                checkForUpdates();
-                window.setInterval(checkForUpdates, 60_000);
-                window.addEventListener('online', checkForUpdates);
-                document.addEventListener('visibilitychange', checkForUpdates);
-            })
-                .catch((error) => console.warn('Counter offline cache registration failed.', error));
+            navigator.serviceWorker.getRegistrations()
+                .then((registrations) => Promise.all(
+                    registrations
+                        .filter((registration) => new URL(registration.scope).pathname === '/counter/')
+                        .map((registration) => registration.unregister()),
+                ))
+                .catch((error) => console.warn('Could not retire the Counter-specific service worker.', error));
         }
 
         initializeFirebase();
+        updateSyncStatus();
         renderApp();
     </script>
 </body>

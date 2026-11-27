@@ -110,12 +110,12 @@ export function FilterBar({
         className={`shrink-0 w-9 h-8 flex items-center justify-center transition-all active:scale-95 ${
           inGroupsRow
             ? `rounded-lg border ${
-                active
-                  ? 'bg-gray-800 text-white border-gray-900 shadow-sm ring-2 ring-gray-300'
+              active
+                  ? 'bg-gray-800 text-white border-gray-900 shadow-sm ring-2 ring-gray-500'
                   : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100 hover:text-gray-700'
               }`
             : `rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-400 ${
-                active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
+                  active ? 'text-gray-900 ring-2 ring-gray-800' : 'text-gray-500 hover:text-gray-800'
               }`
         }`}
       >
@@ -131,7 +131,7 @@ export function FilterBar({
       aria-label="Select multiple main categories"
       title="Select multiple main categories"
       className={`flex h-12 w-10 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 active:scale-95 ${
-        multiMode && multiSelectionScope === 'category' ? 'text-gray-900' : 'text-gray-500 hover:text-gray-800'
+        multiMode && multiSelectionScope === 'category' ? 'text-gray-900 ring-2 ring-gray-800' : 'text-gray-500 hover:text-gray-800'
       }`}
     >
       <Boxes className="h-5 w-5" />
