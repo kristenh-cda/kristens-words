@@ -254,7 +254,7 @@ export const categories: SoundCategory[] = [
     subcategories: [
       { id: 'v-initial', label: 'Initial', words: ['v', 'vanilla', 'vegetable', 'violin', 'vase', 'vet', 'van', 'volcano', 'vacuum', 'vest', 'voice', 'vampire', 'volleyball', 'vitamins', 'velcro', 'vowel', 'vulture', 'vine', 'vote', 'valentine'] },
       { id: 'v-medial', label: 'Medial', words: ['shovel', 'fever', 'oval', 'seven', 'oven', 'beaver', 'heavy', 'wavy', 'gravy', 'clover', 'diver', 'driver', 'lava', 'travel', 'movie', 'over', 'river', 'never', 'invite', 'server'] },
-      { id: 'v-final', label: 'Final', words: ['love', 'five', 'wave', 'stove', 'drive', 'shave', 'dive', 'move', 'cave', 'hive', 'give', 'wave', 'dove', 'carve', 'glove', 'leave', 'oliver', 'sleeve', 'above', 'microwave'] },
+      { id: 'v-final', label: 'Final', words: ['love', 'five', 'wave', 'stove', 'drive', 'shave', 'dive', 'move', 'cave', 'hive', 'give', 'dove', 'carve', 'glove', 'leave', 'olive', 'sleeve', 'above', 'microwave'] },
     ],
   },
   {
