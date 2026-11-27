@@ -237,7 +237,12 @@ export const categories: SoundCategory[] = [
     accent: 'from-cyan-500 to-cyan-600',
     accentSoft: 'bg-cyan-50 text-cyan-700 border-cyan-200',
     ring: 'ring-cyan-300',
-    subcategories: [],
+    disabled: false,
+    subcategories: [
+      { id: 'f-initial', label: 'Initial', words: ['foot', 'fish', 'four', 'five', 'fan', 'fox', 'fin', 'fork', 'fence', 'food', 'fall', 'feet', 'first', 'phone', 'find', 'fire', 'family', 'forest', 'finger', 'feather'] },
+      { id: 'f-medial', label: 'Medial', words: ['goofy', 'muffin', 'coughing', 'laughing', 'different', 'coffee', 'before', 'after', 'traffic', 'trophy', 'office', 'surfer', 'gopher', 'waffle', 'lifeguard', 'headphones', 'breakfast', 'alphabet', 'elephant', 'campfire'] },
+      { id: 'f-final', label: 'Final', words: ['leaf', 'knife', 'giraffe', 'half', 'roof', 'shelf', 'wolf', 'surf', 'scarf', 'calf', 'elf', 'loaf', 'safe', 'golf', 'off', 'cough', 'laugh', 'stuff', 'chef', 'hoof'] },
+    ],
   },
   {
     id: 'v',
@@ -245,7 +250,12 @@ export const categories: SoundCategory[] = [
     accent: 'from-sky-500 to-sky-600',
     accentSoft: 'bg-sky-50 text-sky-700 border-sky-200',
     ring: 'ring-sky-300',
-    subcategories: [],
+    disabled: false,
+    subcategories: [
+      { id: 'v-initial', label: 'Initial', words: ['v', 'vanilla', 'vegetable', 'violin', 'vase', 'vet', 'van', 'volcano', 'vacuum', 'vest', 'voice', 'vampire', 'volleyball', 'vitamins', 'velcro', 'vowel', 'vulture', 'vine', 'vote', 'valentine'] },
+      { id: 'v-medial', label: 'Medial', words: ['shovel', 'fever', 'oval', 'seven', 'oven', 'beaver', 'heavy', 'wavy', 'gravy', 'clover', 'diver', 'driver', 'lava', 'travel', 'movie', 'over', 'river', 'never', 'invite', 'server'] },
+      { id: 'v-final', label: 'Final', words: ['love', 'five', 'wave', 'stove', 'drive', 'shave', 'dive', 'move', 'cave', 'hive', 'give', 'wave', 'dove', 'carve', 'glove', 'leave', 'oliver', 'sleeve', 'above', 'microwave'] },
+    ],
   },
   {
     id: 't',
